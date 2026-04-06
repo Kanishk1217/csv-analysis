@@ -105,27 +105,51 @@ async def upload(file: UploadFile = File(...)):
         df_raw = read_csv_safe(file)
         df = clean_df(df_raw)
 
-        num_cols = df.columns[df.dtypes != "object"].tolist()
-        cat_cols = df.columns[df.dtypes == "object"].tolist()
-        stats_df = df.describe()
-        stats = stats_df.where(stats_df.notna(), other=None).to_dict()
-        cat_summary = {
-            col: df[col].value_counts().head(10).to_dict()
-            for col in cat_cols
-        }
+        num_cols = df.select_dtypes(include="number").columns.tolist()
+        cat_cols = df.select_dtypes(include="object").columns.tolist()
 
-        # 500 rows for charts (Distributions / Visualizations use this)
-        sample = df.head(500).replace({np.nan: None})
-        # replace inf values
-        sample = sample.replace([np.inf, -np.inf], None)
+        # Safe stats — only numeric columns, replace all bad values
+        try:
+            stats_df = df[num_cols].describe() if num_cols else pd.DataFrame()
+            stats = {}
+            for col in stats_df.columns:
+                stats[col] = {}
+                for idx in stats_df.index:
+                    v = stats_df.loc[idx, col]
+                    stats[col][idx] = None if (v is None or (isinstance(v, float) and (np.isnan(v) or np.isinf(v)))) else float(v)
+        except Exception:
+            stats = {}
+
+        cat_summary = {}
+        for col in cat_cols:
+            try:
+                cat_summary[col] = df[col].value_counts().head(10).to_dict()
+            except Exception:
+                cat_summary[col] = {}
+
+        # 500 rows for charts
+        def safe_records(frame: pd.DataFrame):
+            rows = []
+            for row in frame.to_dict(orient="records"):
+                safe_row = {}
+                for k, v in row.items():
+                    if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
+                        safe_row[k] = None
+                    else:
+                        safe_row[k] = v
+                rows.append(safe_row)
+            return rows
+
+        sample_rows = safe_records(df.head(500))
+        preview_rows = sample_rows[:10]
 
         return {
             "shape":         list(df_raw.shape),
             "columns":       df.columns.tolist(),
             "dtypes":        df.dtypes.astype(str).to_dict(),
-            "preview":       sample.head(10).to_dict(orient="records"),
-            "sample":        sample.to_dict(orient="records"),
-            "missing":       df_raw.isnull().sum().to_dict(),
+            "preview":       preview_rows,
+            "sample":        sample_rows,
+            "missing":       {k: int(v) for k, v in df_raw.isnull().sum().to_dict().items()},
             "missing_total": int(df_raw.isnull().sum().sum()),
             "duplicates":    int(df_raw.duplicated().sum()),
             "complete_rows": int((~df_raw.isnull().any(axis=1)).sum()),
