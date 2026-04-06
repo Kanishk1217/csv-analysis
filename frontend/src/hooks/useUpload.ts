@@ -15,8 +15,8 @@ export function useUpload() {
     try {
       const result = await uploadCSV(f)
       setData(result)
-    } catch {
-      setError('Failed to upload file. Make sure the API is running.')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to upload file.')
     } finally {
       setLoading(false)
     }
