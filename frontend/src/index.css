@@ -11,6 +11,10 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
   background-color: #0a0a0a;
   -webkit-font-smoothing: antialiased;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 48px 48px;
 }
 
 ::-webkit-scrollbar       { width: 4px; height: 4px; }
@@ -20,3 +24,44 @@ body {
 
 input[type="range"] { height: 2px; }
 select option       { background: #111111; color: #fafafa; }
+
+/* Glow utilities */
+.glow-sm  { box-shadow: 0 0 12px rgba(250,250,250,0.06); }
+.glow-md  { box-shadow: 0 0 24px rgba(250,250,250,0.08); }
+.glow-line { box-shadow: 0 1px 0 rgba(250,250,250,0.04); }
+
+/* Gradient text */
+.text-gradient {
+  background: linear-gradient(135deg, #fafafa 0%, #a1a1aa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Scan line animation */
+@keyframes scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(400%); }
+}
+.scan-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent 40%, rgba(250,250,250,0.02) 50%, transparent 60%);
+  animation: scan 4s linear infinite;
+  pointer-events: none;
+}
+
+/* Corner bracket animation */
+@keyframes corner-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 1; }
+}
+.corner-active .corner-bracket { animation: corner-pulse 1s ease-in-out infinite; }
+
+/* Number flip */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.count-anim { animation: count-up 0.4s ease-out both; }
