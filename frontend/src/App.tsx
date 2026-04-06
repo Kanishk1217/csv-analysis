@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Navbar } from './components/Layout/Navbar'
 import { Footer } from './components/Layout/Footer'
 import { DropZone } from './components/Upload/DropZone'
+import { UploadingScreen } from './components/Upload/UploadingScreen'
 import { Tabs } from './components/UI/Tabs'
 import { DataPreview } from './components/Dashboard/DataPreview'
 import { Statistics } from './components/Dashboard/Statistics'
@@ -57,6 +58,11 @@ export default function App() {
   return (
     <div className="min-h-screen bg-bg flex flex-col">
       <Navbar />
+
+      {/* Full-screen upload loading overlay */}
+      <AnimatePresence>
+        {uploading && file && <UploadingScreen filename={file.name} />}
+      </AnimatePresence>
 
       <main className="flex-1 pt-14">
         <AnimatePresence mode="wait">
