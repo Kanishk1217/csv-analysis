@@ -1,8 +1,10 @@
 import { motion, type HTMLMotionProps } from 'framer-motion'
+import type { ReactNode } from 'react'
 
-type Props = HTMLMotionProps<'button'> & {
+type Props = Omit<HTMLMotionProps<'button'>, 'children'> & {
   variant?: 'primary' | 'ghost' | 'outline'
   size?: 'sm' | 'md' | 'lg'
+  children?: ReactNode
 }
 
 export function Button({ variant = 'primary', size = 'md', className = '', children, disabled, ...props }: Props) {
@@ -27,7 +29,6 @@ export function Button({ variant = 'primary', size = 'md', className = '', child
       className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >
-      {/* Shimmer on hover for primary */}
       {variant === 'primary' && (
         <motion.span
           className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full"
