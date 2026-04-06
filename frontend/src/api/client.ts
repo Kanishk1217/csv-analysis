@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios'
-import type { UploadResponse, CorrelationResponse, TrainResponse } from '../types'
+import type { UploadResponse, CorrelationResponse, TrainResponse, PreprocessResponse } from '../types'
 
 const BASE = 'https://csv-analysis-st5k.onrender.com'
 
@@ -35,6 +35,27 @@ export async function fetchCorrelations(file: File): Promise<CorrelationResponse
     const form = new FormData()
     form.append('file', file)
     const { data } = await api.post<CorrelationResponse>('/correlations', form)
+    return data
+  } catch (e) {
+    throw new Error(extractError(e))
+  }
+}
+
+export async function preprocessCSV(
+  file: File,
+  fillNumeric: string,
+  fillCategorical: string,
+  scaleStrategy: string,
+  dropDuplicates: boolean,
+): Promise<PreprocessResponse> {
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('fill_numeric', fillNumeric)
+    form.append('fill_categorical', fillCategorical)
+    form.append('scale_strategy', scaleStrategy)
+    form.append('drop_duplicates', String(dropDuplicates))
+    const { data } = await api.post<PreprocessResponse>('/preprocess', form)
     return data
   } catch (e) {
     throw new Error(extractError(e))

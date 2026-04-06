@@ -1,41 +1,46 @@
-import { motion } from 'framer-motion'
+import { motion, useScroll, useTransform } from 'framer-motion'
 
 export function Navbar() {
+  const { scrollY } = useScroll()
+  const bg = useTransform(scrollY, [0, 60], ['rgba(0,0,0,0)', 'rgba(0,0,0,0.85)'])
+
   return (
     <motion.header
-      initial={{ opacity: 0, y: -16 }}
+      style={{ backgroundColor: bg }}
+      className="fixed top-0 inset-x-0 z-50 h-14 flex items-center px-6"
+      initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed top-0 inset-x-0 z-50 h-14 flex items-center px-6 border-b border-white/[0.06]"
-      style={{
-        background: 'rgba(10,10,10,0.8)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-      }}
+      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="flex items-center gap-3">
-        <div className="relative w-6 h-6 border border-white/20 grid grid-cols-2 gap-px p-[3px] overflow-hidden">
-          {[1, 0.4, 0.4, 1].map((op, i) => (
-            <div key={i} className="bg-primary" style={{ opacity: op }} />
-          ))}
-          <motion.div
-            className="absolute inset-0"
-            style={{ background: 'linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.07) 50%, transparent 60%)' }}
-            animate={{ x: ['-100%', '200%'] }}
-            transition={{ duration: 3, repeat: Infinity, repeatDelay: 4, ease: 'easeInOut' }}
-          />
-        </div>
-        <span className="text-sm font-semibold tracking-tight text-gradient">CSV Analyzer</span>
-      </div>
+      <div
+        className="absolute inset-0 border-b border-white/[0.06]"
+        style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
+      />
 
-      <div className="ml-auto flex items-center gap-3">
-        <motion.span
-          className="text-xs font-mono text-dim border border-border/50 px-2 py-0.5"
-          animate={{ borderColor: ['rgba(38,38,38,0.5)', 'rgba(161,161,170,0.3)', 'rgba(38,38,38,0.5)'] }}
-          transition={{ duration: 3, repeat: Infinity }}
-        >
-          v1.0
-        </motion.span>
+      <div className="relative flex w-full items-center">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5">
+          <div className="relative w-6 h-6 overflow-hidden">
+            <div className="grid grid-cols-2 gap-0.5 w-full h-full">
+              {[1, 0.35, 0.35, 1].map((op, i) => (
+                <div key={i} className="bg-white rounded-[1px]" style={{ opacity: op }} />
+              ))}
+            </div>
+          </div>
+          <span className="text-sm font-medium tracking-tight text-white/90">CSV Analyzer</span>
+        </div>
+
+        {/* Right */}
+        <div className="ml-auto flex items-center gap-6">
+          <motion.div
+            className="flex items-center gap-1.5"
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <div className="w-1 h-1 rounded-full bg-white/40" />
+            <span className="text-[11px] font-mono text-white/40 tracking-widest">v1.0</span>
+          </motion.div>
+        </div>
       </div>
     </motion.header>
   )

@@ -1,55 +1,41 @@
 import { motion } from 'framer-motion'
 import type { Tab } from '../../types'
 
-const TAB_LABELS: Record<Tab, string> = {
-  preview:        'Preview',
-  statistics:     'Statistics',
-  correlations:   'Correlations',
-  distributions:  'Distributions',
-  visualizations: 'Visualizations',
-  model:          'ML Model',
-  features:       'Features',
-}
-
 interface Props {
   tabs?: { id: Tab; label: string }[]
   active: Tab
   onChange: (t: Tab) => void
 }
 
-export function Tabs({ tabs, active, onChange }: Props) {
-  const entries = tabs
-    ? tabs.map((t) => ({ key: t.id, label: t.label }))
-    : (Object.keys(TAB_LABELS) as Tab[]).map((k) => ({ key: k, label: TAB_LABELS[k] }))
-
+export function Tabs({ tabs = [], active, onChange }: Props) {
   return (
-    <div className="flex flex-wrap gap-0 border-b border-border">
-      {entries.map(({ key, label }) => {
-        const isActive = active === key
+    <div className="relative flex flex-wrap gap-0 border-b border-white/[0.06]">
+      {tabs.map(({ id, label }) => {
+        const isActive = active === id
         return (
-          <motion.button
-            key={key}
-            onClick={() => onChange(key as Tab)}
-            whileHover={{ color: isActive ? '#fafafa' : '#a1a1aa' }}
-            className={`relative px-4 py-2.5 text-xs font-medium tracking-wide transition-colors
-              ${isActive ? 'text-primary' : 'text-dim'}`}
+          <button
+            key={id}
+            onClick={() => onChange(id)}
+            className="relative px-5 py-3 text-xs font-medium tracking-wide transition-colors duration-200 focus:outline-none"
+            style={{ color: isActive ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.35)' }}
           >
             {isActive && (
-              <motion.div
-                layoutId="tab-indicator"
-                className="absolute bottom-0 left-0 right-0 h-px bg-primary"
-                transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-              />
-            )}
-            {isActive && (
-              <motion.div
-                layoutId="tab-bg"
-                className="absolute inset-0 bg-white/[0.03]"
-                transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-              />
+              <>
+                <motion.div
+                  layoutId="tab-underline"
+                  className="absolute bottom-0 left-0 right-0 h-px bg-white"
+                  transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                />
+                <motion.div
+                  layoutId="tab-bg"
+                  className="absolute inset-0"
+                  style={{ background: 'linear-gradient(to bottom, rgba(255,255,255,0.04), transparent)' }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                />
+              </>
             )}
             <span className="relative z-10">{label}</span>
-          </motion.button>
+          </button>
         )
       })}
     </div>

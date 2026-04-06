@@ -201,6 +201,91 @@ async def correlations(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/preprocess")
+async def preprocess(
+    file:             UploadFile = File(...),
+    fill_numeric:     str        = Form("mean"),
+    fill_categorical: str        = Form("mode"),
+    scale_strategy:   str        = Form("none"),
+    drop_duplicates:  str        = Form("false"),
+):
+    try:
+        df = read_csv_safe(file)
+        rows_before = len(df)
+        filled_numeric     = 0
+        filled_categorical = 0
+
+        # Drop duplicates
+        if drop_duplicates.lower() == "true":
+            df = df.drop_duplicates()
+
+        num_cols = df.select_dtypes(include="number").columns.tolist()
+        cat_cols = df.select_dtypes(include="object").columns.tolist()
+
+        # Fill numeric missing
+        if fill_numeric == "drop":
+            df = df.dropna(subset=num_cols)
+        else:
+            for col in num_cols:
+                n = df[col].isnull().sum()
+                if n > 0:
+                    if fill_numeric == "mean":
+                        df[col] = df[col].fillna(df[col].mean())
+                    elif fill_numeric == "median":
+                        df[col] = df[col].fillna(df[col].median())
+                    elif fill_numeric == "zero":
+                        df[col] = df[col].fillna(0)
+                    filled_numeric += int(n)
+
+        # Fill categorical missing
+        if fill_categorical == "drop":
+            df = df.dropna(subset=cat_cols)
+        else:
+            for col in cat_cols:
+                n = df[col].isnull().sum()
+                if n > 0:
+                    if fill_categorical == "mode":
+                        mode = df[col].mode()
+                        df[col] = df[col].fillna(mode[0] if len(mode) else "Unknown")
+                    elif fill_categorical == "unknown":
+                        df[col] = df[col].fillna("Unknown")
+                    filled_categorical += int(n)
+
+        # Scale numeric
+        if scale_strategy != "none" and num_cols:
+            from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+            scaler = {"standard": StandardScaler(), "minmax": MinMaxScaler(), "robust": RobustScaler()}[scale_strategy]
+            df[num_cols] = scaler.fit_transform(df[num_cols])
+
+        # Build preview
+        def safe_val(v):
+            if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
+                return None
+            if hasattr(v, 'item'):
+                return v.item()
+            return v
+
+        preview = [{k: safe_val(v) for k, v in row.items()} for row in df.head(10).to_dict(orient="records")]
+
+        # CSV export
+        csv_str = df.to_csv(index=False)
+
+        return {
+            "rows_before":         rows_before,
+            "rows_after":          len(df),
+            "cols":                len(df.columns),
+            "filled_numeric":      filled_numeric,
+            "filled_categorical":  filled_categorical,
+            "columns":             df.columns.tolist(),
+            "preview":             preview,
+            "csv":                 csv_str,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/train")
 async def train(
     file:      UploadFile = File(...),

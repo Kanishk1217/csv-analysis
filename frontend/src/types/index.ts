@@ -45,11 +45,23 @@ export interface TrainResponse {
   error?: string
 }
 
+export interface PreprocessResponse {
+  rows_before: number
+  rows_after: number
+  cols: number
+  filled_numeric: number
+  filled_categorical: number
+  preview: Record<string, unknown>[]
+  columns: string[]
+  csv: string
+}
+
 export type Tab =
   | 'preview'
   | 'statistics'
   | 'correlations'
   | 'distributions'
   | 'visualizations'
+  | 'preprocessing'
   | 'model'
   | 'features'
