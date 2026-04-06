@@ -28,7 +28,21 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=False,
+    expose_headers=["*"],
 )
+
+# Ensure CORS headers are present even on unhandled 500 errors
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
 
 # Prototypes — cloned fresh per request so state never leaks between calls
 _REGRESSION_MODELS = {
@@ -94,7 +108,7 @@ async def upload(file: UploadFile = File(...)):
         num_cols = df.columns[df.dtypes != "object"].tolist()
         cat_cols = df.columns[df.dtypes == "object"].tolist()
         stats_df = df.describe()
-        stats = stats_df.where(stats_df.notna() & ~np.isinf(stats_df.values), other=None).to_dict()
+        stats = stats_df.where(stats_df.notna(), other=None).to_dict()
         cat_summary = {
             col: df[col].value_counts().head(10).to_dict()
             for col in cat_cols
