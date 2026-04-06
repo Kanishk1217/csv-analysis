@@ -5,6 +5,10 @@ const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 const api = axios.create({ baseURL: BASE })
 
+export async function pingServer(): Promise<void> {
+  await api.get('/health').catch(() => {})
+}
+
 export async function uploadCSV(file: File): Promise<UploadResponse> {
   const form = new FormData()
   form.append('file', file)

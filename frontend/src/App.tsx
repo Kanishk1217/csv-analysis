@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Navbar } from './components/Layout/Navbar'
 import { Footer } from './components/Layout/Footer'
@@ -13,6 +13,7 @@ import { MLTraining } from './components/Dashboard/MLTraining'
 import { FeatureImportance } from './components/Dashboard/FeatureImportance'
 import { useUpload } from './hooks/useUpload'
 import { useModel } from './hooks/useModel'
+import { pingServer } from './api/client'
 import type { Tab } from './types'
 
 const TABS: { id: Tab; label: string }[] = [
@@ -39,6 +40,11 @@ export default function App() {
   } = useModel(file)
 
   const [tab, setTab] = useState<Tab>('preview')
+  const [serverReady, setServerReady] = useState(false)
+
+  useEffect(() => {
+    pingServer().finally(() => setServerReady(true))
+  }, [])
 
   return (
     <div className="min-h-screen bg-bg flex flex-col">
@@ -88,6 +94,16 @@ export default function App() {
                   </span>
                 ))}
               </motion.div>
+
+              {!serverReady && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="w-full text-center text-xs font-mono text-dim border border-border px-4 py-3"
+                >
+                  Waking up server — first load may take ~30s on free tier...
+                </motion.div>
+              )}
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
