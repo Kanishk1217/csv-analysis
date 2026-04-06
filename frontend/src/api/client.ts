@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios'
 import type { UploadResponse, CorrelationResponse, TrainResponse } from '../types'
 
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const BASE = 'https://csv-analysis-st5k.onrender.com'
 
 const api = axios.create({ baseURL: BASE, timeout: 120_000 })
 
