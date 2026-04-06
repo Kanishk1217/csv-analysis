@@ -17,14 +17,14 @@ export function Visualizations({ data }: { data: UploadResponse }) {
   const [chart, setChart] = useState<ChartType>('bar')
 
   const barData = Object.entries(
-    data.preview.reduce<Record<string, number>>((acc, row) => {
+    data.sample.reduce<Record<string, number>>((acc, row) => {
       const key = String(row[xCol])
       acc[key] = (acc[key] ?? 0) + 1
       return acc
     }, {})
   ).slice(0, 20).map(([name, value]) => ({ name, value }))
 
-  const scatterData = data.preview.map((r) => ({ x: Number(r[xCol]), y: Number(r[yCol]) }))
+  const scatterData = data.sample.map((r) => ({ x: Number(r[xCol]), y: Number(r[yCol]) }))
     .filter((d) => !isNaN(d.x) && !isNaN(d.y))
 
   const s = 'bg-surface border border-border text-muted text-xs font-mono px-3 py-2 focus:outline-none focus:border-dim'

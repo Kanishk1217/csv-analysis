@@ -3,6 +3,7 @@ export interface UploadResponse {
   columns: string[]
   dtypes: Record<string, string>
   preview: Record<string, unknown>[]
+  sample: Record<string, unknown>[]
   missing: Record<string, number>
   missing_total: number
   duplicates: number

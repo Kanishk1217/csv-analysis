@@ -47,7 +47,8 @@ interface Props {
 }
 
 export function Correlations({ correlations, loading, onLoad }: Props) {
-  useEffect(() => { if (!correlations && !loading) onLoad() }, [])
+  // Fire once on mount — onLoad guards against duplicate calls internally
+  useEffect(() => { onLoad() }, [])
 
   if (loading) return (
     <div className="flex items-center justify-center py-20 gap-3">

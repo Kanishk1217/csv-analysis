@@ -13,7 +13,7 @@ export function Distributions({ data }: { data: UploadResponse }) {
   const [selected, setSelected] = useState<string[]>(data.numeric_cols.slice(0, 3))
 
   const buildHistogram = (col: string) => {
-    const vals = data.preview.map((r) => Number(r[col])).filter((v) => !isNaN(v))
+    const vals = data.sample.map((r) => Number(r[col])).filter((v) => !isNaN(v))
     if (!vals.length) return []
     const min = Math.min(...vals), max = Math.max(...vals)
     const bins = 10, size = (max - min) / bins || 1

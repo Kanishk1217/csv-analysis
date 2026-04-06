@@ -35,7 +35,7 @@ export default function App() {
   const { file, data, loading: uploading, error: uploadError, upload, reset } = useUpload()
   const {
     result, correlations,
-    loading: modelLoading, error: modelError,
+    loading: modelLoading, corrLoading, error: modelError,
     train, loadCorrelations,
   } = useModel(file)
 
@@ -162,7 +162,7 @@ export default function App() {
                   {tab === 'correlations'   && (
                     <Correlations
                       correlations={correlations}
-                      loading={modelLoading}
+                      loading={corrLoading}
                       onLoad={loadCorrelations}
                     />
                   )}

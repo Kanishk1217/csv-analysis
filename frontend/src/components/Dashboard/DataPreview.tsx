@@ -32,7 +32,7 @@ export function DataPreview({ data }: { data: UploadResponse }) {
       </div>
       <div className="bg-surface border border-border overflow-x-auto">
         <p className="text-xs font-mono text-dim uppercase tracking-widest p-4 border-b border-border">
-          First 10 rows
+          Preview — first {data.preview.length} rows
         </p>
         <table className="w-full text-xs">
           <thead>

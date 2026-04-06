@@ -8,6 +8,7 @@ export function useModel(file: File | null) {
   const [loading, setLoading]      = useState(false)
   const [corrLoading, setCorrLoad] = useState(false)
   const [error, setError]          = useState<string | null>(null)
+  const [corrError, setCorrError]  = useState<string | null>(null)
 
   async function train(target: string, algorithm: string, testSize: number) {
     if (!file) return
@@ -15,7 +16,6 @@ export function useModel(file: File | null) {
     setError(null)
     try {
       const res = await trainModel(file, target, algorithm, testSize)
-      if (res.error) throw new Error(res.error)
       setResult(res)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Training failed')
@@ -25,15 +25,18 @@ export function useModel(file: File | null) {
   }
 
   async function loadCorrelations() {
-    if (!file) return
+    if (!file || corrLoading || correlations) return
     setCorrLoad(true)
+    setCorrError(null)
     try {
       const res = await fetchCorrelations(file)
       setCorr(res)
+    } catch (e: unknown) {
+      setCorrError(e instanceof Error ? e.message : 'Failed to load correlations')
     } finally {
       setCorrLoad(false)
     }
   }
 
-  return { result, correlations, loading, corrLoading, error, train, loadCorrelations }
+  return { result, correlations, loading, corrLoading, corrError, error, train, loadCorrelations }
 }
