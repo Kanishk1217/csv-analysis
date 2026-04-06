@@ -114,7 +114,7 @@ export default function App() {
                   <div className="w-2 h-2 bg-primary rounded-full" />
                   <span className="text-xs font-mono text-muted">{file?.name}</span>
                   <span className="text-xs font-mono text-dim">
-                    {data.rows.toLocaleString()} rows · {data.columns.length} columns
+                    {data.shape[0].toLocaleString()} rows · {data.columns.length} columns
                   </span>
                 </div>
                 <button

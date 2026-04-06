@@ -12,27 +12,32 @@ const TAB_LABELS: Record<Tab, string> = {
 }
 
 interface Props {
+  tabs?: { id: Tab; label: string }[]
   active: Tab
   onChange: (t: Tab) => void
 }
 
-export function Tabs({ active, onChange }: Props) {
+export function Tabs({ tabs, active, onChange }: Props) {
+  const entries = tabs
+    ? tabs.map((t) => ({ key: t.id, label: t.label }))
+    : (Object.keys(TAB_LABELS) as Tab[]).map((k) => ({ key: k, label: TAB_LABELS[k] }))
+
   return (
     <div className="flex flex-wrap gap-1 border-b border-border">
-      {(Object.keys(TAB_LABELS) as Tab[]).map((tab) => (
+      {entries.map(({ key, label }) => (
         <button
-          key={tab}
-          onClick={() => onChange(tab)}
+          key={key}
+          onClick={() => onChange(key as Tab)}
           className={`relative px-4 py-2 text-xs font-medium tracking-wide transition-colors
-            ${active === tab ? 'text-primary' : 'text-dim hover:text-muted'}`}
+            ${active === key ? 'text-primary' : 'text-dim hover:text-muted'}`}
         >
-          {active === tab && (
+          {active === key && (
             <motion.div
               layoutId="tab-indicator"
               className="absolute bottom-0 left-0 right-0 h-px bg-primary"
             />
           )}
-          {TAB_LABELS[tab]}
+          {label}
         </button>
       ))}
     </div>
