@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { ScatterChart, Scatter, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Button } from '../UI/Button'
-import { MetricBox } from '../UI/MetricBox'
-import { Spinner } from '../UI/Spinner'
+import { Scatter, XAxis, YAxis, Tooltip, ResponsiveContainer, Line, ComposedChart } from 'recharts'
+import { Button }       from '../UI/Button'
+import { MetricBox }    from '../UI/MetricBox'
+import { Spinner }      from '../UI/Spinner'
+import { InsightPanel } from '../UI/InsightPanel'
+import { fmt, fmtAxis } from '../../utils/format'
 import type { UploadResponse, TrainResponse } from '../../types'
 
 const REGRESSION_ALGOS     = ['Linear Regression', 'Ridge Regression', 'Decision Tree', 'Random Forest', 'Gradient Boosting']
@@ -17,28 +19,55 @@ const TOOLTIP = {
 
 interface Props {
   uploadData: UploadResponse
-  onTrain: (target: string, algo: string, testSize: number) => Promise<void>
-  result: TrainResponse | null
-  loading: boolean
-  error: string | null
+  onTrain:    (target: string, algo: string, testSize: number) => Promise<void>
+  result:     TrainResponse | null
+  loading:    boolean
+  error:      string | null
 }
 
 export function MLTraining({ uploadData, onTrain, result, loading, error }: Props) {
-  const [target,   setTarget]   = useState(uploadData.columns[uploadData.columns.length - 1])
+  // Exclude pure ID columns from target (high cardinality integers)
+  const validTargets = uploadData.columns.filter((c) => {
+    const col = c.toLowerCase()
+    return !['id', 'index', 'idx'].includes(col) && !col.endsWith('_id') && !col.startsWith('id_')
+  })
+
+  const [target,   setTarget]   = useState(validTargets[validTargets.length - 1] ?? uploadData.columns[0])
   const [algo,     setAlgo]     = useState('Random Forest')
   const [testSize, setTestSize] = useState(20)
 
   const isReg = uploadData.numeric_cols.includes(target)
   const algos = isReg ? REGRESSION_ALGOS : CLASSIFICATION_ALGOS
-  const s = 'w-full bg-surface border border-border text-muted text-xs font-mono px-3 py-2 focus:outline-none focus:border-dim'
+  const s     = 'w-full bg-surface border border-border text-muted text-xs font-mono px-3 py-2 focus:outline-none focus:border-dim'
+
+  const avpData = result?.actual_vs_predicted
+    ? result.actual_vs_predicted.actual.map((a, i) => ({
+        actual:    a,
+        predicted: result.actual_vs_predicted!.predicted[i],
+      }))
+    : []
+
+  const allVals = avpData.flatMap((d) => [d.actual, d.predicted])
+  const minVal  = allVals.length ? Math.min(...allVals) : 0
+  const maxVal  = allVals.length ? Math.max(...allVals) : 1
+  const refLine = [{ x: minVal, y: minVal }, { x: maxVal, y: maxVal }]
+
+  const insights = [
+    'R² close to 1.0 means the model explains most variance — excellent predictive power.',
+    'RMSE is the average error in the same units as your target column.',
+    'For classification, accuracy above 90% is generally good; above 70% is acceptable.',
+    'Feature importance shows which columns drive the prediction most.',
+  ]
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      <InsightPanel insights={insights} />
+
       <div className="bg-surface border border-border p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <p className="text-xs font-mono text-dim mb-1.5">Target Column</p>
-          <select value={target} onChange={(e) => setTarget(e.target.value)} className={s}>
-            {uploadData.columns.map((c) => <option key={c}>{c}</option>)}
+          <select value={target} onChange={(e) => { setTarget(e.target.value); setAlgo('Random Forest') }} className={s}>
+            {validTargets.map((c) => <option key={c}>{c}</option>)}
           </select>
           <p className="text-xs font-mono text-dim mt-1">
             Task: <span className="text-muted">{isReg ? 'Regression' : 'Classification'}</span>
@@ -65,31 +94,51 @@ export function MLTraining({ uploadData, onTrain, result, loading, error }: Prop
       {result && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <MetricBox label="Algorithm"     value={result.algorithm} />
+            <MetricBox label="Algorithm"     value={result.algorithm}     />
             <MetricBox label="Train Samples" value={result.train_samples} />
-            <MetricBox label="Test Samples"  value={result.test_samples} />
-            <MetricBox label="Features"      value={result.features} />
+            <MetricBox label="Test Samples"  value={result.test_samples}  />
+            <MetricBox label="Features"      value={result.features}      />
           </div>
 
           {result.problem_type === 'regression' && result.metrics && (
             <>
               <div className="grid grid-cols-3 gap-3">
-                <MetricBox label="R² Score" value={result.metrics.r2 ?? '—'} />
-                <MetricBox label="RMSE"     value={result.metrics.rmse ?? '—'} />
-                <MetricBox label="MAE"      value={result.metrics.mae ?? '—'} />
+                <div className="glass p-4">
+                  <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-1">R² Score</p>
+                  <p className="text-2xl font-semibold text-white">{result.metrics.r2?.toFixed(4) ?? '—'}</p>
+                  <p className="text-[10px] font-mono text-white/20 mt-1">
+                    {(result.metrics.r2 ?? 0) >= 0.8 ? 'Excellent fit' : (result.metrics.r2 ?? 0) >= 0.5 ? 'Moderate fit' : 'Poor fit'}
+                  </p>
+                </div>
+                <div className="glass p-4">
+                  <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-1">RMSE</p>
+                  <p className="text-2xl font-semibold text-white">{fmt(result.metrics.rmse)}</p>
+                  <p className="text-[10px] font-mono text-white/20 mt-1">root mean sq. error</p>
+                </div>
+                <div className="glass p-4">
+                  <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-1">MAE</p>
+                  <p className="text-2xl font-semibold text-white">{fmt(result.metrics.mae)}</p>
+                  <p className="text-[10px] font-mono text-white/20 mt-1">mean abs. error</p>
+                </div>
               </div>
-              {result.actual_vs_predicted && (
+
+              {avpData.length > 0 && (
                 <div className="bg-surface border border-border p-4">
-                  <p className="text-xs font-mono text-dim uppercase tracking-widest mb-4">Actual vs Predicted</p>
-                  <ResponsiveContainer width="100%" height={240}>
-                    <ScatterChart>
-                      <XAxis dataKey="actual"    name="Actual"    tick={{ fontSize: 10, fill: '#52525b' }} />
-                      <YAxis dataKey="predicted" name="Predicted" tick={{ fontSize: 10, fill: '#52525b' }} />
-                      <Tooltip {...TOOLTIP} />
-                      <Scatter data={result.actual_vs_predicted.actual.map((a, i) => ({
-                        actual: a, predicted: result.actual_vs_predicted!.predicted[i]
-                      }))} fill="#fafafa" fillOpacity={0.5} />
-                    </ScatterChart>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-xs font-mono text-dim uppercase tracking-widest">Actual vs Predicted</p>
+                    <p className="text-[10px] font-mono text-white/25">Points closer to the line = better accuracy</p>
+                  </div>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <ComposedChart>
+                      <XAxis dataKey="x" type="number" domain={[minVal, maxVal]} tickFormatter={fmtAxis}
+                        tick={{ fontSize: 10, fill: '#52525b' }} name="Actual" />
+                      <YAxis dataKey="y" type="number" domain={[minVal, maxVal]} tickFormatter={fmtAxis}
+                        tick={{ fontSize: 10, fill: '#52525b' }} name="Predicted" />
+                      <Tooltip {...TOOLTIP} formatter={(v: number) => fmt(v)} />
+                      <Line data={refLine} dataKey="y" dot={false} stroke="rgba(255,255,255,0.15)"
+                        strokeWidth={1.5} strokeDasharray="4 4" legendType="none" />
+                      <Scatter data={avpData} fill="rgba(250,250,250,0.5)" />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               )}
@@ -98,7 +147,21 @@ export function MLTraining({ uploadData, onTrain, result, loading, error }: Prop
 
           {result.problem_type === 'classification' && result.metrics && (
             <>
-              <MetricBox label="Accuracy" value={`${((result.metrics.accuracy ?? 0) * 100).toFixed(2)}%`} />
+              <div className="glass p-5">
+                <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-1">Accuracy</p>
+                <p className="text-3xl font-semibold text-white">
+                  {((result.metrics.accuracy ?? 0) * 100).toFixed(1)}%
+                </p>
+                <div className="mt-3 h-1 bg-white/[0.06] overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(result.metrics.accuracy ?? 0) * 100}%` }}
+                    transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                    className="h-full bg-white/50"
+                  />
+                </div>
+              </div>
+
               {result.classification_report && (
                 <div className="bg-surface border border-border overflow-x-auto">
                   <p className="text-xs font-mono text-dim uppercase tracking-widest p-4 border-b border-border">
@@ -120,7 +183,7 @@ export function MLTraining({ uploadData, onTrain, result, loading, error }: Prop
                             <td className="px-4 py-2 font-mono text-muted">{cls}</td>
                             {['precision', 'recall', 'f1-score', 'support'].map((m) => (
                               <td key={m} className="px-4 py-2 font-mono text-muted">
-                                {typeof vals === 'object' ? (vals as Record<string, number>)[m]?.toFixed(4) : '—'}
+                                {typeof vals === 'object' ? (vals as Record<string, number>)[m]?.toFixed(3) : '—'}
                               </td>
                             ))}
                           </tr>
@@ -129,19 +192,22 @@ export function MLTraining({ uploadData, onTrain, result, loading, error }: Prop
                   </table>
                 </div>
               )}
+
               {result.confusion_matrix && (
                 <div className="bg-surface border border-border p-4">
-                  <p className="text-xs font-mono text-dim uppercase tracking-widest mb-4">Confusion Matrix</p>
+                  <p className="text-xs font-mono text-dim uppercase tracking-widest mb-2">Confusion Matrix</p>
+                  <p className="text-[10px] font-mono text-white/25 mb-3">Darker = higher count. Diagonal = correct predictions.</p>
                   <div className="overflow-x-auto">
                     <table className="text-xs border-collapse">
                       {result.confusion_matrix.map((row, i) => (
                         <tr key={i}>
                           {row.map((val, j) => {
-                            const max = Math.max(...result.confusion_matrix!.flat())
+                            const mx = Math.max(...result.confusion_matrix!.flat())
+                            const isCorrect = i === j
                             return (
-                              <td key={j} className="w-12 h-12 text-center font-mono border border-border"
-                                style={{ backgroundColor: `rgba(250,250,250,${val / max * 0.6})` }}>
-                                {val}
+                              <td key={j} className="w-14 h-14 text-center font-mono border border-border"
+                                style={{ backgroundColor: `rgba(${isCorrect ? '250,250,250' : '100,130,180'},${val / Math.max(mx, 1) * 0.7})` }}>
+                                <span className="font-semibold">{val}</span>
                               </td>
                             )
                           })}
