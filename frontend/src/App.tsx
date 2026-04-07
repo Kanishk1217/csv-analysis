@@ -1,67 +1,60 @@
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Navbar } from './components/Layout/Navbar'
-import { Footer } from './components/Layout/Footer'
-import { DropZone } from './components/Upload/DropZone'
+import { Navbar }          from './components/Layout/Navbar'
+import { Footer }          from './components/Layout/Footer'
+import { DropZone }        from './components/Upload/DropZone'
 import { UploadingScreen } from './components/Upload/UploadingScreen'
-import { Tabs } from './components/UI/Tabs'
-import { DataPreview } from './components/Dashboard/DataPreview'
-import { Statistics } from './components/Dashboard/Statistics'
-import { Correlations } from './components/Dashboard/Correlations'
-import { Distributions } from './components/Dashboard/Distributions'
-import { Visualizations } from './components/Dashboard/Visualizations'
-import { MLTraining } from './components/Dashboard/MLTraining'
+import { Tabs }            from './components/UI/Tabs'
+import { AlertBanner }     from './components/UI/AlertBanner'
+import { ColumnRenamer }   from './components/UI/ColumnRenamer'
+import { DataPreview }     from './components/Dashboard/DataPreview'
+import { Statistics }      from './components/Dashboard/Statistics'
+import { Correlations }    from './components/Dashboard/Correlations'
+import { Distributions }   from './components/Dashboard/Distributions'
+import { Visualizations }  from './components/Dashboard/Visualizations'
+import { MLTraining }      from './components/Dashboard/MLTraining'
 import { FeatureImportance } from './components/Dashboard/FeatureImportance'
-import { Preprocessing } from './components/Dashboard/Preprocessing'
-import { useUpload } from './hooks/useUpload'
-import { useModel } from './hooks/useModel'
-import { pingServer } from './api/client'
-import type { Tab } from './types'
+import { Preprocessing }   from './components/Dashboard/Preprocessing'
+import { useUpload }       from './hooks/useUpload'
+import { useModel }        from './hooks/useModel'
+import { pingServer }      from './api/client'
+import type { Tab }        from './types'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'preview',        label: 'Preview' },
-  { id: 'statistics',     label: 'Statistics' },
-  { id: 'correlations',   label: 'Correlations' },
+  { id: 'preview',        label: 'Preview'       },
+  { id: 'statistics',     label: 'Statistics'    },
+  { id: 'correlations',   label: 'Correlations'  },
   { id: 'distributions',  label: 'Distributions' },
-  { id: 'visualizations', label: 'Visualizations' },
+  { id: 'visualizations', label: 'Visualizations'},
   { id: 'preprocessing',  label: 'Preprocessing' },
-  { id: 'model',          label: 'ML Model' },
-  { id: 'features',       label: 'Features' },
+  { id: 'model',          label: 'ML Model'      },
+  { id: 'features',       label: 'Features'      },
 ]
 
-const FEATURES = ['EDA', 'Correlations', 'Distributions', 'Preprocessing', 'ML Training', 'Feature Importance']
-
 export default function App() {
-  const { file, data, loading: uploading, error: uploadError, upload, reset } = useUpload()
-  const {
-    result, correlations,
-    loading: modelLoading, corrLoading, error: modelError,
-    train, loadCorrelations,
-  } = useModel(file)
+  const { file, data, loading: uploading, error: uploadError, upload, reset, restoredFilename } = useUpload()
+  const { result, correlations, loading: modelLoading, corrLoading, error: modelError, train, loadCorrelations } = useModel(file)
 
-  const [tab, setTab]           = useState<Tab>('preview')
-  const [serverReady, setReady] = useState(false)
+  const [tab,       setTab]       = useState<Tab>('preview')
+  const [serverReady, setReady]   = useState(false)
+  const [renameMap, setRenameMap] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    pingServer().finally(() => setReady(true))
-  }, [])
+  useEffect(() => { pingServer().finally(() => setReady(true)) }, [])
 
   return (
     <div className="relative min-h-screen bg-black text-white flex flex-col">
-      {/* Background layer */}
-      <div className="bg-orb bg-orb-1" />
-      <div className="bg-orb bg-orb-2" />
-      <div className="bg-orb bg-orb-3" />
-      <div className="noise" />
+      <div className="bg-orb bg-orb-1" aria-hidden="true" />
+      <div className="bg-orb bg-orb-2" aria-hidden="true" />
+      <div className="bg-orb bg-orb-3" aria-hidden="true" />
+      <div className="noise"           aria-hidden="true" />
 
       <Navbar />
 
-      {/* Full-screen upload overlay */}
       <AnimatePresence>
         {uploading && file && <UploadingScreen filename={file.name} />}
       </AnimatePresence>
 
-      <main className="relative z-10 flex-1 pt-14">
+      <main id="main-content" className="relative z-10 flex-1 pt-14">
         <AnimatePresence mode="wait">
           {!data ? (
             /* ── Hero ── */
@@ -73,88 +66,75 @@ export default function App() {
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
               className="min-h-[calc(100vh-3.5rem)] flex flex-col items-center justify-center px-6 py-20"
             >
-              {/* Eyebrow */}
               <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                 className="mb-6 flex items-center gap-2"
               >
-                <div className="h-px w-8 bg-white/20 line-reveal" />
+                <div className="h-px w-8 bg-white/20 line-reveal" aria-hidden="true" />
                 <span className="text-[11px] font-mono text-white/40 tracking-[0.2em] uppercase">Data Analysis Platform</span>
-                <div className="h-px w-8 bg-white/20" />
+                <div className="h-px w-8 bg-white/20" aria-hidden="true" />
               </motion.div>
 
-              {/* Main title */}
               <motion.h1
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                className="text-center font-bold leading-none tracking-tighter mb-6"
+                className="text-center font-bold leading-none tracking-tighter mb-4"
                 style={{ fontSize: 'clamp(3.5rem, 10vw, 7rem)' }}
               >
-                <span className="text-gradient glow-text">CSV</span>
+                <span className="text-gradient glow-text">Understand</span>
                 <br />
-                <span className="text-white/90">Analyzer</span>
+                <span className="text-white/90">Your Data</span>
               </motion.h1>
 
-              {/* Subtitle */}
               <motion.p
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-                className="text-center text-white/40 font-light max-w-md mb-10 leading-relaxed"
-                style={{ fontSize: '1rem' }}
+                className="text-center text-white/40 font-light max-w-lg mb-3 leading-relaxed"
+                style={{ fontSize: '1.05rem' }}
               >
-                Explore, visualize, preprocess, and train ML models on any CSV — entirely in the browser.
+                Upload any CSV and instantly explore patterns, detect anomalies, preprocess data, and train ML models — no coding required.
               </motion.p>
 
-              {/* Feature pills */}
+              <motion.p
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+                className="text-center text-white/20 font-mono text-xs mb-10"
+              >
+                Works on any dataset · Free · No sign-up
+              </motion.p>
+
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 transition={{ delay: 0.35, duration: 0.6 }}
                 className="flex flex-wrap justify-center gap-2 mb-12"
               >
-                {FEATURES.map((f, i) => (
-                  <motion.span
-                    key={f}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.4 + i * 0.05, duration: 0.4 }}
+                {['Smart EDA', 'Correlation Analysis', 'Distribution Insights', 'Data Preprocessing', 'ML Training', 'Feature Importance'].map((f, i) => (
+                  <motion.span key={f}
+                    initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.4 + i * 0.05 }}
                     whileHover={{ borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)', scale: 1.02 }}
                     className="px-3 py-1 text-xs font-mono border border-white/[0.07] text-white/30 cursor-default transition-colors"
-                  >
-                    {f}
-                  </motion.span>
+                  >{f}</motion.span>
                 ))}
               </motion.div>
 
-              {/* Server wake-up notice */}
               <AnimatePresence>
                 {!serverReady && (
                   <motion.div
-                    initial={{ opacity: 0, y: 8, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mb-6 overflow-hidden"
+                    initial={{ opacity: 0, y: 8, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }} className="mb-6 overflow-hidden"
                   >
-                    <div className="flex items-center gap-2.5 text-[11px] font-mono text-white/25 glass px-4 py-2.5">
-                      <motion.div
-                        className="w-1 h-1 rounded-full bg-white/40"
-                        animate={{ opacity: [0.2, 1, 0.2] }}
-                        transition={{ duration: 1.2, repeat: Infinity }}
-                      />
+                    <div className="flex items-center gap-2.5 text-[11px] font-mono text-white/25 glass px-4 py-2.5" role="status" aria-live="polite">
+                      <motion.div className="w-1 h-1 rounded-full bg-white/40"
+                        animate={{ opacity: [0.2, 1, 0.2] }} transition={{ duration: 1.2, repeat: Infinity }} aria-hidden="true" />
                       Waking up server — first load may take ~30s
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Drop zone */}
               <motion.div
-                initial={{ opacity: 0, y: 24 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
                 className="w-full max-w-xl"
               >
@@ -166,45 +146,48 @@ export default function App() {
             /* ── Dashboard ── */
             <motion.div
               key="dashboard"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="max-w-6xl mx-auto px-4 py-6 space-y-5"
+              className="max-w-6xl mx-auto px-4 py-6 space-y-4"
             >
               {/* File bar */}
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                className="glass flex items-center justify-between px-5 py-3 relative overflow-hidden"
+                initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+                className="glass flex items-center justify-between px-5 py-3 relative overflow-hidden flex-wrap gap-3"
               >
-                <div
-                  className="absolute inset-x-0 top-0 h-px"
+                <div className="absolute inset-x-0 top-0 h-px"
                   style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)' }}
-                />
-                <div className="flex items-center gap-3">
-                  <motion.div
-                    className="w-1.5 h-1.5 rounded-full bg-white/60"
+                  aria-hidden="true" />
+                <div className="flex items-center gap-3 flex-wrap">
+                  <motion.div className="w-1.5 h-1.5 rounded-full bg-white/60 flex-shrink-0"
                     animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.3, 1] }}
-                    transition={{ duration: 2.5, repeat: Infinity }}
-                  />
-                  <span className="text-xs font-mono text-white/60">{file?.name}</span>
+                    transition={{ duration: 2.5, repeat: Infinity }} aria-hidden="true" />
+                  <span className="text-xs font-mono text-white/60">{file?.name ?? restoredFilename ?? 'Unknown file'}</span>
                   <span className="text-[11px] font-mono text-white/25 border-l border-white/10 pl-3">
                     {data.shape[0].toLocaleString()} rows · {data.columns.length} cols
                   </span>
+                  {restoredFilename && !file && (
+                    <span className="text-[10px] font-mono text-white/20 border border-white/[0.06] px-2 py-0.5">
+                      session restored · re-upload to run new analyses
+                    </span>
+                  )}
                 </div>
-                <motion.button
-                  onClick={reset}
-                  whileHover={{ color: 'rgba(255,255,255,0.9)' }}
-                  className="text-xs font-mono text-white/25 transition-colors"
-                >
-                  ✕ Close
-                </motion.button>
+                <div className="flex items-center gap-3">
+                  <ColumnRenamer columns={data.columns} renameMap={renameMap} onChange={setRenameMap} />
+                  <motion.button onClick={reset} whileHover={{ color: 'rgba(255,255,255,0.9)' }}
+                    className="text-xs font-mono text-white/25 transition-colors" aria-label="Close and upload new file">
+                    ✕ Close
+                  </motion.button>
+                </div>
               </motion.div>
 
-              {/* Tabs */}
-              <Tabs tabs={TABS} active={tab} onChange={(t) => setTab(t as Tab)} />
+              {/* Smart alerts */}
+              <AlertBanner data={data} />
+
+              {/* Tabs — scrollable on mobile */}
+              <div className="overflow-x-auto -mx-4 px-4 sm:overflow-visible sm:mx-0 sm:px-0">
+                <Tabs tabs={TABS} active={tab} onChange={(t) => setTab(t as Tab)} />
+              </div>
 
               {/* Tab content */}
               <AnimatePresence mode="wait">

@@ -118,6 +118,10 @@ def is_id_col(df: pd.DataFrame, col: str) -> bool:
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
     try:
+        contents = file.file.read()
+        if len(contents) > 20 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File is too large (max 20 MB). Try removing unused columns or filtering rows before uploading.")
+        file.file.seek(0)
         df_raw = read_csv_safe(file)
         df = clean_df(df_raw)
 
