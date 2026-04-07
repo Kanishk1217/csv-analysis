@@ -5,6 +5,7 @@ import { Button }       from '../UI/Button'
 import { MetricBox }    from '../UI/MetricBox'
 import { Spinner }      from '../UI/Spinner'
 import { InsightPanel } from '../UI/InsightPanel'
+import { TrustBadge }   from '../UI/TrustBadge'
 import { fmt, fmtAxis } from '../../utils/format'
 import type { UploadResponse, TrainResponse } from '../../types'
 
@@ -102,6 +103,9 @@ export function MLTraining({ uploadData, onTrain, result, loading, error }: Prop
 
           {result.problem_type === 'regression' && result.metrics && (
             <>
+              <div className="glass p-4">
+                <TrustBadge value={result.metrics.r2 ?? 0} type="r2" />
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="glass p-4">
                   <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-1">R² Score</p>
@@ -147,6 +151,9 @@ export function MLTraining({ uploadData, onTrain, result, loading, error }: Prop
 
           {result.problem_type === 'classification' && result.metrics && (
             <>
+              <div className="glass p-4">
+                <TrustBadge value={result.metrics.accuracy ?? 0} type="accuracy" />
+              </div>
               <div className="glass p-5">
                 <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-1">Accuracy</p>
                 <p className="text-3xl font-semibold text-white">
@@ -219,6 +226,38 @@ export function MLTraining({ uploadData, onTrain, result, loading, error }: Prop
               )}
             </>
           )}
+          {/* What This Means */}
+          {(() => {
+            const recs: string[] = []
+            const r2  = result.metrics.r2 ?? null
+            const acc = result.metrics.accuracy ?? null
+            const samples = result.train_samples + result.test_samples
+            if (result.problem_type === 'regression' && r2 !== null) {
+              if (r2 < 0.5)  recs.push('R² below 0.5 — model performance is weak. Try Gradient Boosting or engineer more features.')
+              if (r2 > 0.95) recs.push('R² above 0.95 may indicate overfitting — validate on completely new data.')
+              if (r2 >= 0.5 && r2 <= 0.95) recs.push('Model performance is acceptable. Feature Importance tab shows which columns matter most.')
+            }
+            if (result.problem_type === 'classification' && acc !== null) {
+              if (acc < 0.7) recs.push('Accuracy below 70% — try Gradient Boosting or add more training data.')
+              if (acc > 0.95) recs.push('Very high accuracy — check for data leakage (a column that directly encodes the label).')
+              if (acc >= 0.7 && acc <= 0.95) recs.push('Accuracy is in a healthy range. Review the confusion matrix to check for class imbalance.')
+            }
+            if (samples < 200) recs.push('Small dataset (under 200 rows) — results may not generalise well. Collect more data if possible.')
+            if (result.features < 3) recs.push('Very few features used — consider adding more relevant columns to improve predictions.')
+            if (!recs.length) return null
+            return (
+              <div className="glass p-4 space-y-2">
+                <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-white/30 mb-3">What This Means</p>
+                <ul className="space-y-2">
+                  {recs.map((r, i) => (
+                    <li key={i} className="flex items-start gap-2.5 text-xs font-mono text-white/60 leading-relaxed">
+                      <span className="text-white/20 mt-0.5 flex-shrink-0">›</span><span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })()}
         </motion.div>
       )}
     </motion.div>

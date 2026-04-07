@@ -65,3 +65,4 @@ export type Tab =
   | 'preprocessing'
   | 'model'
   | 'features'
+  | 'summary'

@@ -15,12 +15,14 @@ import { Visualizations }  from './components/Dashboard/Visualizations'
 import { MLTraining }      from './components/Dashboard/MLTraining'
 import { FeatureImportance } from './components/Dashboard/FeatureImportance'
 import { Preprocessing }   from './components/Dashboard/Preprocessing'
+import { Summary }         from './components/Dashboard/Summary'
 import { useUpload }       from './hooks/useUpload'
 import { useModel }        from './hooks/useModel'
 import { pingServer }      from './api/client'
 import type { Tab }        from './types'
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'summary',        label: 'Summary'       },
   { id: 'preview',        label: 'Preview'       },
   { id: 'statistics',     label: 'Statistics'    },
   { id: 'correlations',   label: 'Correlations'  },
@@ -35,7 +37,7 @@ export default function App() {
   const { file, data, loading: uploading, error: uploadError, upload, reset, restoredFilename } = useUpload()
   const { result, correlations, loading: modelLoading, corrLoading, error: modelError, train, loadCorrelations } = useModel(file)
 
-  const [tab,       setTab]       = useState<Tab>('preview')
+  const [tab,       setTab]       = useState<Tab>('summary')
   const [serverReady, setReady]   = useState(false)
   const [renameMap, setRenameMap] = useState<Record<string, string>>({})
 
@@ -198,6 +200,7 @@ export default function App() {
                   exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
                   transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                 >
+                  {tab === 'summary'        && <Summary data={data} corrResult={correlations} />}
                   {tab === 'preview'        && <DataPreview data={data} />}
                   {tab === 'statistics'     && <Statistics data={data} />}
                   {tab === 'correlations'   && <Correlations correlations={correlations} loading={corrLoading} onLoad={loadCorrelations} />}
