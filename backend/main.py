@@ -99,13 +99,29 @@ def safe_json(obj):
     return obj
 
 
+def is_id_col(df: pd.DataFrame, col: str) -> bool:
+    """Return True if column looks like an identifier — exclude from numeric analysis."""
+    col_lower = col.lower().strip()
+    if col_lower in ('id', 'index', 'idx', 'key', 'ref', 'no', 'num', 'number', 'code', 'serial'):
+        return True
+    id_patterns = ('_id', '_code', '_key', '_ref', '_no', '_num', '_index', '_serial',
+                   'id_', 'code_', 'key_', 'ref_', 'no_', 'num_')
+    if any(col_lower.endswith(p) or col_lower.startswith(p) for p in id_patterns):
+        return True
+    # High-cardinality integers: >90% unique values
+    if pd.api.types.is_integer_dtype(df[col]):
+        if df[col].nunique() / max(len(df), 1) > 0.9:
+            return True
+    return False
+
+
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
     try:
         df_raw = read_csv_safe(file)
         df = clean_df(df_raw)
 
-        num_cols = df.select_dtypes(include="number").columns.tolist()
+        num_cols = [c for c in df.select_dtypes(include="number").columns if not is_id_col(df, c)]
         cat_cols = df.select_dtypes(include="object").columns.tolist()
 
         # Safe stats — only numeric columns, replace all bad values
@@ -171,8 +187,8 @@ async def correlations(file: UploadFile = File(...)):
         df_raw = read_csv_safe(file)
         df = clean_df(df_raw)
 
-        num_raw = df_raw.select_dtypes("number")
-        num_cln = df.select_dtypes("number")
+        num_raw = df_raw[[c for c in df_raw.select_dtypes("number").columns if not is_id_col(df_raw, c)]]
+        num_cln = df[[c for c in df.select_dtypes("number").columns if not is_id_col(df, c)]]
 
         if num_cln.empty:
             return {"error": "No numeric columns found"}
