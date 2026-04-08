@@ -70,6 +70,12 @@ export function Visualizations({ data }: { data: UploadResponse }) {
             </ScatterChart>
           )}
         </ResponsiveContainer>
+        <p className="text-[10px] font-mono text-white/25 mt-2">
+          {chart === 'bar'
+            ? `Bar height shows how many rows have each value of "${xCol}". Taller bars = more common. Use this to spot dominant categories or rare values.`
+            : `Each dot is one row. Its horizontal position is the value of "${xCol}" and vertical position is "${yCol}". A diagonal pattern means the two columns are correlated. A cloud with no pattern means they are independent.`
+          }
+        </p>
       </div>
     </motion.div>
   )
