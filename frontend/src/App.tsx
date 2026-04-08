@@ -3,45 +3,103 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Navbar }          from './components/Layout/Navbar'
 import { Footer }          from './components/Layout/Footer'
 import { DropZone }        from './components/Upload/DropZone'
+import { CompactUpload }   from './components/Upload/CompactUpload'
 import { UploadingScreen } from './components/Upload/UploadingScreen'
 import { Tabs }            from './components/UI/Tabs'
-import { AlertBanner }     from './components/UI/AlertBanner'
-import { ColumnRenamer }   from './components/UI/ColumnRenamer'
-import { DataPreview }     from './components/Dashboard/DataPreview'
-import { Statistics }      from './components/Dashboard/Statistics'
-import { Correlations }    from './components/Dashboard/Correlations'
-import { Distributions }   from './components/Dashboard/Distributions'
-import { Visualizations }  from './components/Dashboard/Visualizations'
-import { MLTraining }      from './components/Dashboard/MLTraining'
-import { FeatureImportance } from './components/Dashboard/FeatureImportance'
-import { Preprocessing }   from './components/Dashboard/Preprocessing'
-import { Summary }         from './components/Dashboard/Summary'
+import { SlotContent }     from './components/Dashboard/SlotContent'
 import { useUpload }       from './hooks/useUpload'
 import { useModel }        from './hooks/useModel'
+import { uploadCSV }       from './api/client'
 import { pingServer }      from './api/client'
-import type { Tab }        from './types'
+import type { Tab, UploadResponse } from './types'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'summary',        label: 'Summary'       },
-  { id: 'preview',        label: 'Preview'       },
-  { id: 'statistics',     label: 'Statistics'    },
-  { id: 'correlations',   label: 'Correlations'  },
-  { id: 'distributions',  label: 'Distributions' },
-  { id: 'visualizations', label: 'Visualizations'},
-  { id: 'preprocessing',  label: 'Preprocessing' },
-  { id: 'model',          label: 'ML Model'      },
-  { id: 'features',       label: 'Features'      },
+  { id: 'summary',        label: 'Summary'        },
+  { id: 'preview',        label: 'Preview'        },
+  { id: 'statistics',     label: 'Statistics'     },
+  { id: 'correlations',   label: 'Correlations'   },
+  { id: 'distributions',  label: 'Distributions'  },
+  { id: 'visualizations', label: 'Visualizations' },
+  { id: 'preprocessing',  label: 'Preprocessing'  },
+  { id: 'model',          label: 'ML Model'       },
+  { id: 'features',       label: 'Features'       },
 ]
 
-export default function App() {
-  const { file, data, loading: uploading, error: uploadError, upload, reset, restoredFilename } = useUpload()
-  const { result, correlations, loading: modelLoading, corrLoading, error: modelError, train, loadCorrelations } = useModel(file)
+type Layout = 'sidebyside' | 'switch'
 
-  const [tab,       setTab]       = useState<Tab>('summary')
-  const [serverReady, setReady]   = useState(false)
-  const [renameMap, setRenameMap] = useState<Record<string, string>>({})
+export default function App() {
+  /* ── Primary slot (session-persisted) ── */
+  const { file: f0, data: d0, loading: l0, error: e0, upload: up0, reset: reset0, restoredFilename } = useUpload()
+
+  /* ── Comparison slots (ephemeral) ── */
+  const [f1, setF1] = useState<File | null>(null)
+  const [d1, setD1] = useState<UploadResponse | null>(null)
+  const [l1, setL1] = useState(false)
+  const [e1, setE1] = useState<string | null>(null)
+
+  const [f2, setF2] = useState<File | null>(null)
+  const [d2, setD2] = useState<UploadResponse | null>(null)
+  const [l2, setL2] = useState(false)
+  const [e2, setE2] = useState<string | null>(null)
+
+  /* ── Model state (hooks always called, inactive when file is null) ── */
+  const m0 = useModel(f0)
+  const m1 = useModel(f1)
+  const m2 = useModel(f2)
+
+  /* ── UI state ── */
+  const [tab,          setTab]          = useState<Tab>('summary')
+  const [layout,       setLayout]       = useState<Layout>('sidebyside')
+  const [activeSlot,   setActiveSlot]   = useState(0)
+  const [serverReady,  setReady]        = useState(false)
+  const [showAddPanel, setShowAddPanel] = useState(false)
 
   useEffect(() => { pingServer().finally(() => setReady(true)) }, [])
+
+  /* ── Upload helpers for comparison slots ── */
+  async function uploadSlot(idx: 1 | 2, f: File) {
+    const setL = idx === 1 ? setL1 : setL2
+    const setE = idx === 1 ? setE1 : setE2
+    const setF = idx === 1 ? setF1 : setF2
+    const setD = idx === 1 ? setD1 : setD2
+    if (f.size > 20 * 1024 * 1024) {
+      setE('File too large (max 20 MB).')
+      return
+    }
+    setL(true); setE(null)
+    try {
+      const res = await uploadCSV(f)
+      setF(f); setD(res)
+    } catch (err: unknown) {
+      setE(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setL(false)
+    }
+  }
+
+  function removeSlot(idx: 1 | 2) {
+    if (idx === 1) { setF1(null); setD1(null); setE1(null) }
+    else           { setF2(null); setD2(null); setE2(null) }
+    if (activeSlot === idx) setActiveSlot(0)
+  }
+
+  function resetAll() {
+    reset0()
+    setF1(null); setD1(null); setE1(null)
+    setF2(null); setD2(null); setE2(null)
+    setActiveSlot(0)
+    setShowAddPanel(false)
+  }
+
+  /* ── Active slots ── */
+  const loadedSlots = [
+    d0 ? { data: d0, file: f0, model: m0, name: f0?.name ?? restoredFilename ?? 'File 1', idx: 0 as const } : null,
+    d1 ? { data: d1, file: f1, model: m1, name: f1?.name ?? 'File 2',                     idx: 1 as const } : null,
+    d2 ? { data: d2, file: f2, model: m2, name: f2?.name ?? 'File 3',                     idx: 2 as const } : null,
+  ].filter(Boolean) as { data: UploadResponse; file: File | null; model: ReturnType<typeof useModel>; name: string; idx: number }[]
+
+  const compareActive = loadedSlots.length > 1
+  const canAddMore    = d0 !== null && loadedSlots.length < 3
 
   return (
     <div className="relative min-h-screen bg-black text-white flex flex-col">
@@ -50,15 +108,15 @@ export default function App() {
       <div className="bg-orb bg-orb-3" aria-hidden="true" />
       <div className="noise"           aria-hidden="true" />
 
-      <Navbar onReset={reset} />
+      <Navbar onReset={resetAll} />
 
       <AnimatePresence>
-        {uploading && file && <UploadingScreen filename={file.name} />}
+        {l0 && f0 && <UploadingScreen filename={f0.name} />}
       </AnimatePresence>
 
       <main id="main-content" className="relative z-10 flex-1 pt-14">
         <AnimatePresence mode="wait">
-          {!data ? (
+          {!d0 ? (
             /* ── Hero ── */
             <motion.div
               key="hero"
@@ -102,7 +160,7 @@ export default function App() {
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
                 className="text-center text-white/20 font-mono text-xs mb-10"
               >
-                Works on any dataset · Free · No sign-up
+                Works on any dataset · Compare up to 3 files · Free · No sign-up
               </motion.p>
 
               <motion.div
@@ -110,7 +168,7 @@ export default function App() {
                 transition={{ delay: 0.35, duration: 0.6 }}
                 className="flex flex-wrap justify-center gap-2 mb-12"
               >
-                {['Smart EDA', 'Correlation Analysis', 'Distribution Insights', 'Data Preprocessing', 'ML Training', 'Feature Importance'].map((f, i) => (
+                {['Smart EDA', 'Correlation Analysis', 'Distribution Insights', 'Data Preprocessing', 'ML Training', 'Feature Importance', 'Multi-file Compare'].map((f, i) => (
                   <motion.span key={f}
                     initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.4 + i * 0.05 }}
@@ -140,7 +198,7 @@ export default function App() {
                 transition={{ delay: 0.5, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
                 className="w-full max-w-xl"
               >
-                <DropZone onFile={upload} loading={uploading} error={uploadError} />
+                <DropZone onFile={up0} loading={l0} error={e0} />
               </motion.div>
             </motion.div>
 
@@ -150,9 +208,9 @@ export default function App() {
               key="dashboard"
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="max-w-6xl mx-auto px-4 py-6 space-y-4"
+              className="max-w-7xl mx-auto px-4 py-6 space-y-4"
             >
-              {/* File bar */}
+              {/* ── Top bar ── */}
               <motion.div
                 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
                 className="glass flex items-center justify-between px-5 py-3 relative overflow-hidden flex-wrap gap-3"
@@ -160,55 +218,186 @@ export default function App() {
                 <div className="absolute inset-x-0 top-0 h-px"
                   style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)' }}
                   aria-hidden="true" />
-                <div className="flex items-center gap-3 flex-wrap">
-                  <motion.div className="w-1.5 h-1.5 rounded-full bg-white/60 flex-shrink-0"
-                    animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.3, 1] }}
-                    transition={{ duration: 2.5, repeat: Infinity }} aria-hidden="true" />
-                  <span className="text-xs font-mono text-white/60">{file?.name ?? restoredFilename ?? 'Unknown file'}</span>
-                  <span className="text-[11px] font-mono text-white/25 border-l border-white/10 pl-3">
-                    {data.shape[0].toLocaleString()} rows · {data.columns.length} cols
-                  </span>
-                  {restoredFilename && !file && (
+
+                {/* File names */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {loadedSlots.map((slot) => (
+                    <span key={slot.idx} className="text-xs font-mono text-white/50 border border-white/[0.08] px-2 py-0.5">
+                      {slot.name}
+                    </span>
+                  ))}
+                  {restoredFilename && !f0 && (
                     <span className="text-[10px] font-mono text-white/20 border border-white/[0.06] px-2 py-0.5">
                       session restored · re-upload to run new analyses
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
-                  <ColumnRenamer columns={data.columns} renameMap={renameMap} onChange={setRenameMap} />
-                  <motion.button onClick={reset} whileHover={{ color: 'rgba(255,255,255,0.9)' }}
-                    className="text-xs font-mono text-white/25 transition-colors" aria-label="Close and upload new file">
+
+                {/* Controls */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  {/* Compare layout toggle */}
+                  {compareActive && (
+                    <div className="flex items-center border border-white/[0.08]">
+                      <button
+                        onClick={() => setLayout('sidebyside')}
+                        className={`px-2.5 py-1 text-[10px] font-mono transition-colors ${layout === 'sidebyside' ? 'bg-white/10 text-white/80' : 'text-white/30 hover:text-white/50'}`}
+                        aria-pressed={layout === 'sidebyside'}
+                      >
+                        Side by Side
+                      </button>
+                      <div className="w-px h-4 bg-white/[0.08]" />
+                      <button
+                        onClick={() => setLayout('switch')}
+                        className={`px-2.5 py-1 text-[10px] font-mono transition-colors ${layout === 'switch' ? 'bg-white/10 text-white/80' : 'text-white/30 hover:text-white/50'}`}
+                        aria-pressed={layout === 'switch'}
+                      >
+                        Switch Files
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Add File button */}
+                  {canAddMore && (
+                    <button
+                      onClick={() => setShowAddPanel((p) => !p)}
+                      className="text-[10px] font-mono text-white/30 hover:text-white/60 border border-white/[0.08] px-2.5 py-1 transition-colors"
+                      aria-expanded={showAddPanel}
+                    >
+                      {showAddPanel ? '− Hide' : '+ Compare Files'}
+                    </button>
+                  )}
+
+                  <motion.button onClick={resetAll} whileHover={{ color: 'rgba(255,255,255,0.9)' }}
+                    className="text-xs font-mono text-white/25 transition-colors" aria-label="Reset all files">
                     ✕ Close
                   </motion.button>
                 </div>
               </motion.div>
 
-              {/* Smart alerts */}
-              <AlertBanner data={data} />
+              {/* ── Add files panel ── */}
+              <AnimatePresence>
+                {showAddPanel && canAddMore && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="bg-surface border border-border p-4 space-y-3">
+                      <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-white/30">
+                        Add Files to Compare (up to 3 total)
+                      </p>
+                      <div className={`grid gap-4 ${!d1 || !d2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+                        {!d1 && (
+                          <CompactUpload label="File 2 — drop CSV here"
+                            onFile={(f) => { uploadSlot(1, f); setShowAddPanel(false) }}
+                            loading={l1} error={e1} />
+                        )}
+                        {d1 && !d2 && (
+                          <CompactUpload label="File 3 — drop CSV here"
+                            onFile={(f) => { uploadSlot(2, f); setShowAddPanel(false) }}
+                            loading={l2} error={e2} />
+                        )}
+                      </div>
+                      <p className="text-[10px] font-mono text-white/20">
+                        All tabs work independently per file. Side-by-side shows the same tab for all files at once.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              {/* Tabs — scrollable on mobile */}
+              {/* ── Switch mode: file selector ── */}
+              {compareActive && layout === 'switch' && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {loadedSlots.map((slot, i) => (
+                    <button
+                      key={slot.idx}
+                      onClick={() => setActiveSlot(i)}
+                      className={`flex-shrink-0 px-3 py-1.5 text-xs font-mono border transition-colors ${
+                        activeSlot === i
+                          ? 'border-white/40 text-white bg-white/[0.06]'
+                          : 'border-white/[0.08] text-white/40 hover:text-white/60 hover:border-white/20'
+                      }`}
+                    >
+                      {slot.name}
+                      {slot.idx !== 0 && (
+                        <span
+                          className="ml-2 text-white/20 hover:text-white/60 transition-colors"
+                          onClick={(e) => { e.stopPropagation(); removeSlot(slot.idx as 1 | 2) }}
+                          role="button"
+                          aria-label={`Remove ${slot.name}`}
+                        >
+                          ✕
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Shared tab bar ── */}
               <div className="overflow-x-auto -mx-4 px-4 sm:overflow-visible sm:mx-0 sm:px-0">
                 <Tabs tabs={TABS} active={tab} onChange={(t) => setTab(t as Tab)} />
               </div>
 
-              {/* Tab content */}
+              {/* ── Content ── */}
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={tab}
+                  key={`${tab}-${layout}-${activeSlot}`}
                   initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }}
                   animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                   exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
                   transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  {tab === 'summary'        && <Summary data={data} corrResult={correlations} />}
-                  {tab === 'preview'        && <DataPreview data={data} />}
-                  {tab === 'statistics'     && <Statistics data={data} />}
-                  {tab === 'correlations'   && <Correlations correlations={correlations} loading={corrLoading} onLoad={loadCorrelations} />}
-                  {tab === 'distributions'  && <Distributions data={data} />}
-                  {tab === 'visualizations' && <Visualizations data={data} />}
-                  {tab === 'preprocessing'  && <Preprocessing data={data} file={file!} />}
-                  {tab === 'model'          && <MLTraining uploadData={data} onTrain={train} result={result} loading={modelLoading} error={modelError} />}
-                  {tab === 'features'       && <FeatureImportance result={result} />}
+                  {/* Side-by-side: render all slots in a grid */}
+                  {(!compareActive || layout === 'sidebyside') && (
+                    <div className={`grid gap-6 ${
+                      loadedSlots.length === 1 ? 'grid-cols-1' :
+                      loadedSlots.length === 2 ? 'grid-cols-1 lg:grid-cols-2' :
+                      'grid-cols-1 lg:grid-cols-3'
+                    }`}>
+                      {loadedSlots.map((slot) => (
+                        <SlotContent
+                          key={slot.idx}
+                          data={slot.data}
+                          file={slot.file}
+                          model={slot.model}
+                          tab={tab}
+                          filename={slot.name}
+                          compact={loadedSlots.length > 1}
+                          onRemove={slot.idx !== 0 ? () => removeSlot(slot.idx as 1 | 2) : undefined}
+                        />
+                      ))}
+
+                      {/* Add-more slot placeholders when compare panel is not shown */}
+                      {loadedSlots.length < 3 && !showAddPanel && loadedSlots.length > 1 && (
+                        <button
+                          onClick={() => setShowAddPanel(true)}
+                          className="border border-dashed border-white/[0.08] flex flex-col items-center justify-center gap-2 p-12 text-white/20 hover:text-white/40 hover:border-white/20 transition-colors min-h-[200px]"
+                        >
+                          <span className="text-2xl">+</span>
+                          <span className="text-xs font-mono">Add File {loadedSlots.length + 1}</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Switch mode: single active slot */}
+                  {compareActive && layout === 'switch' && (
+                    <SlotContent
+                      data={loadedSlots[activeSlot]?.data ?? d0!}
+                      file={loadedSlots[activeSlot]?.file ?? f0}
+                      model={loadedSlots[activeSlot]?.model ?? m0}
+                      tab={tab}
+                      filename={loadedSlots[activeSlot]?.name ?? ''}
+                      compact={false}
+                      onRemove={loadedSlots[activeSlot]?.idx !== 0
+                        ? () => removeSlot(loadedSlots[activeSlot].idx as 1 | 2)
+                        : undefined
+                      }
+                    />
+                  )}
                 </motion.div>
               </AnimatePresence>
             </motion.div>
