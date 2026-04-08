@@ -102,10 +102,16 @@ export function Correlations({ correlations, loading, onLoad }: Props) {
         <div className="bg-surface border border-border p-4">
           <p className="text-xs font-mono text-dim uppercase tracking-widest mb-4">Before Cleaning</p>
           <HeatmapGrid data={correlations.original} />
+          <p className="text-[10px] font-mono text-white/25 mt-3">
+            Each cell shows how strongly two columns move together. Light = positive (both rise together). Blue = negative (one rises when the other falls). Transparent = no relationship.
+          </p>
         </div>
         <div className="bg-surface border border-border p-4">
           <p className="text-xs font-mono text-dim uppercase tracking-widest mb-4">After Cleaning</p>
           <HeatmapGrid data={correlations.cleaned} />
+          <p className="text-[10px] font-mono text-white/25 mt-3">
+            Same heatmap after dropping missing values. Differences from the left reveal relationships that were hidden or distorted by incomplete data.
+          </p>
         </div>
       </div>
 

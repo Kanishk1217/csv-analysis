@@ -111,6 +111,9 @@ export function Distributions({ data }: { data: UploadResponse }) {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                <p className="text-[10px] font-mono text-white/25 mt-2">
+                  Each bar shows how many rows fall in that value range. A tall bar in the centre means most values are similar. Bars far to one side mean the data is skewed and may contain outliers.
+                </p>
               </div>
             )
           })}
@@ -151,6 +154,9 @@ export function Distributions({ data }: { data: UploadResponse }) {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                <p className="text-[10px] font-mono text-white/25 mt-2">
+                  Bar length shows how often each category appears. A dominant bar means one category makes up most of your data — this can bias ML models if not balanced first.
+                </p>
               </div>
             )
           })}

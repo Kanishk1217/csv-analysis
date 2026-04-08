@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { fmt } from '../../utils/format'
 import type { UploadResponse, CorrelationResponse } from '../../types'
@@ -94,6 +95,8 @@ function buildSummary(data: UploadResponse, corr: CorrelationResponse | null): S
 
 export function Summary({ data, corrResult }: Props) {
   const sections = buildSummary(data, corrResult)
+  const [colSearch, setColSearch] = useState('')
+  const filteredCols = data.columns.filter((c) => c.toLowerCase().includes(colSearch.toLowerCase()))
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -132,6 +135,80 @@ export function Summary({ data, corrResult }: Props) {
           </ul>
         </motion.div>
       ))}
+      {/* Column Summary — last block */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="bg-surface border border-border overflow-x-auto"
+      >
+        <div className="flex items-center justify-between gap-4 p-4 border-b border-border">
+          <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-white/30 flex-shrink-0">
+            Column Summary ({data.columns.length})
+          </p>
+          <input
+            type="text"
+            placeholder="Search columns…"
+            value={colSearch}
+            onChange={(e) => setColSearch(e.target.value)}
+            aria-label="Search columns"
+            className="w-full max-w-xs bg-transparent border border-border text-xs font-mono text-muted placeholder:text-dim px-3 py-1.5 focus:outline-none focus:border-white/20"
+          />
+        </div>
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border">
+              {['Column', 'Type', 'Missing', 'Unique Values', 'Mean / Top'].map((h) => (
+                <th key={h} className="px-4 py-2 text-left font-mono text-dim">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filteredCols.map((col) => {
+              const isNum   = data.numeric_cols.includes(col)
+              const missing = data.missing[col] ?? 0
+              const missPct = data.shape[0] > 0 ? ((missing / data.shape[0]) * 100).toFixed(1) : '0'
+              const stat    = data.statistics[col]
+              const catData = data.cat_summary?.[col]
+              const topCat  = catData ? Object.entries(catData).sort((a, b) => b[1] - a[1])[0]?.[0] : null
+              const uniqueCount = catData ? Object.keys(catData).length : null
+              return (
+                <tr key={col} className="border-b border-border/50 hover:bg-surface2 transition-colors">
+                  <td className="px-4 py-2 font-mono text-muted">{col}</td>
+                  <td className="px-4 py-2">
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 border ${isNum ? 'border-white/15 text-white/50' : 'border-white/10 text-white/35'}`}>
+                      {isNum ? 'numeric' : 'categorical'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 font-mono text-dim">
+                    {missing > 0 ? <span className="text-muted">{missing} ({missPct}%)</span> : <span className="opacity-30">none</span>}
+                  </td>
+                  <td className="px-4 py-2 font-mono text-dim">
+                    {uniqueCount !== null ? uniqueCount : (stat?.count !== null && stat?.count !== undefined ? stat.count : '—')}
+                  </td>
+                  <td className="px-4 py-2 font-mono text-dim">
+                    {isNum && stat?.mean !== null && stat?.mean !== undefined
+                      ? fmt(stat.mean)
+                      : topCat
+                      ? <span className="text-muted truncate max-w-[120px] inline-block">{topCat}</span>
+                      : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+            {filteredCols.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-dim font-mono text-xs">
+                  No columns match "{colSearch}"
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        <p className="text-[10px] font-mono text-white/20 p-3 border-t border-border">
+          Missing shows rows without a value for that column. Mean / Top shows the average for numeric columns and the most frequent value for text columns.
+        </p>
+      </motion.div>
     </motion.div>
   )
 }

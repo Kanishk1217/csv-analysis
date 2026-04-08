@@ -90,6 +90,9 @@ export function FeatureImportance({ result }: { result: TrainResponse | null }) 
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        <p className="text-[10px] font-mono text-white/25 mt-2">
+          Longer bars = more influence on the model's predictions. Features at the top drive the outcome most. Features near the bottom add little value and could be removed to simplify the model.
+        </p>
       </div>
 
       {/* Full table */}
@@ -131,6 +134,9 @@ export function FeatureImportance({ result }: { result: TrainResponse | null }) 
             <Line type="monotone" dataKey="pct" stroke="rgba(250,250,250,0.7)" strokeWidth={1.5} dot={false} />
           </LineChart>
         </ResponsiveContainer>
+        <p className="text-[10px] font-mono text-white/25 mt-2">
+          This line shows how much of the model's total predictive power is captured as you add more features (sorted by importance). The dashed lines mark the 80% and 90% thresholds — features beyond the 80% mark often add noise, not signal.
+        </p>
         <p className="text-[11px] font-mono text-dim mt-3">
           <span className="text-muted">{n80}</span> feature(s) → 80% ·{' '}
           <span className="text-muted">{n90}</span> feature(s) → 90% ·{' '}

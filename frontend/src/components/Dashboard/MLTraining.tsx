@@ -130,7 +130,6 @@ export function MLTraining({ uploadData, onTrain, result, loading, error }: Prop
                 <div className="bg-surface border border-border p-4">
                   <div className="flex items-center justify-between mb-4">
                     <p className="text-xs font-mono text-dim uppercase tracking-widest">Actual vs Predicted</p>
-                    <p className="text-[10px] font-mono text-white/25">Points closer to the line = better accuracy</p>
                   </div>
                   <ResponsiveContainer width="100%" height={260}>
                     <ComposedChart>
@@ -144,6 +143,9 @@ export function MLTraining({ uploadData, onTrain, result, loading, error }: Prop
                       <Scatter data={avpData} fill="rgba(250,250,250,0.5)" />
                     </ComposedChart>
                   </ResponsiveContainer>
+                  <p className="text-[10px] font-mono text-white/25 mt-2">
+                    Each dot is one test row. The dashed diagonal is the "perfect prediction" line — dots close to it mean the model predicted correctly. Dots far from the line are predictions the model got wrong.
+                  </p>
                 </div>
               )}
             </>
