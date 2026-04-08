@@ -70,6 +70,7 @@ export default function App() {
     try {
       const res = await uploadCSV(f)
       setF(f); setD(res)
+      setShowAddPanel(false)
     } catch (err: unknown) {
       setE(err instanceof Error ? err.message : 'Upload failed')
     } finally {
@@ -290,12 +291,12 @@ export default function App() {
                       <div className={`grid gap-4 ${!d1 || !d2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
                         {!d1 && (
                           <CompactUpload label="File 2 — drop CSV here"
-                            onFile={(f) => { uploadSlot(1, f); setShowAddPanel(false) }}
+                            onFile={(f) => uploadSlot(1, f)}
                             loading={l1} error={e1} />
                         )}
                         {d1 && !d2 && (
                           <CompactUpload label="File 3 — drop CSV here"
-                            onFile={(f) => { uploadSlot(2, f); setShowAddPanel(false) }}
+                            onFile={(f) => uploadSlot(2, f)}
                             loading={l2} error={e2} />
                         )}
                       </div>
