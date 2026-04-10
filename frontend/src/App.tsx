@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Navbar }          from './components/Layout/Navbar'
 import { Footer }          from './components/Layout/Footer'
@@ -6,10 +6,11 @@ import { DropZone }        from './components/Upload/DropZone'
 import { UploadingScreen } from './components/Upload/UploadingScreen'
 import { Tabs }            from './components/UI/Tabs'
 import { SlotContent }     from './components/Dashboard/SlotContent'
+import { PDFButton }       from './components/PDF/PDFButton'
 import { useUpload }       from './hooks/useUpload'
 import { useModel }        from './hooks/useModel'
 import { pingServer }      from './api/client'
-import type { Tab }        from './types'
+import type { Tab, PreprocessResponse } from './types'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'summary',        label: 'Summary'        },
@@ -23,14 +24,52 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'features',       label: 'Features'       },
 ]
 
+const ALL_TABS = new Set<Tab>(['summary','preview','statistics','correlations','distributions','visualizations','preprocessing','model','features'])
+
 export default function App() {
   const { file, data, loading, error, upload, reset, restoredFilename } = useUpload()
   const model = useModel(file)
 
-  const [tab,         setTab]   = useState<Tab>('summary')
-  const [serverReady, setReady] = useState(false)
+  const [tab,              setTab]              = useState<Tab>('summary')
+  const [serverReady,      setReady]            = useState(false)
+  const [visitedTabs,      setVisitedTabs]      = useState<Set<Tab>>(new Set())
+  const [preprocessResult, setPreprocessResult] = useState<PreprocessResponse | null>(null)
 
   useEffect(() => { pingServer().finally(() => setReady(true)) }, [])
+
+  useEffect(() => {
+    if (!data) {
+      setVisitedTabs(new Set())
+      setPreprocessResult(null)
+    }
+  }, [data])
+
+  function handleTabChange(newTab: Tab) {
+    setTab(newTab)
+    setVisitedTabs((prev) => {
+      if (prev.has(newTab)) return prev
+      const next = new Set(prev)
+      next.add(newTab)
+      return next
+    })
+  }
+
+  const handlePreprocessed = useCallback((result: PreprocessResponse) => {
+    setPreprocessResult(result)
+  }, [])
+
+  // PDF unlock logic
+  const missingSteps: string[] = []
+  const unvisitedTabs = [...ALL_TABS].filter((t) => !visitedTabs.has(t))
+  if (unvisitedTabs.length > 0) {
+    const tabLabels = TABS.filter((t) => unvisitedTabs.includes(t.id)).map((t) => t.label)
+    tabLabels.forEach((l) => missingSteps.push(`Visit ${l} tab`))
+  }
+  if (!preprocessResult)   missingSteps.push('Run Preprocessing')
+  if (!model.result)       missingSteps.push('Train ML Model')
+  if (!model.correlations) missingSteps.push('Load Correlations')
+
+  const pdfUnlocked = missingSteps.length === 0
 
   return (
     <div className="relative min-h-screen bg-black text-white flex flex-col">
@@ -171,18 +210,29 @@ export default function App() {
                     </span>
                   )}
                 </div>
-                <motion.button onClick={reset} aria-label="Close and reset" whileHover={{ color: 'rgba(255,255,255,0.9)' }}
-                  className="text-xs font-mono text-white/50 transition-colors flex-shrink-0 ml-4">
-                  ✕ Close
-                </motion.button>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <PDFButton
+                    unlocked={pdfUnlocked}
+                    missingSteps={missingSteps}
+                    filename={file?.name ?? restoredFilename ?? 'report'}
+                    data={data}
+                    corrResult={model.correlations}
+                    trainResult={model.result}
+                    preprocessResult={preprocessResult}
+                  />
+                  <motion.button onClick={reset} aria-label="Close and reset" whileHover={{ color: 'rgba(255,255,255,0.9)' }}
+                    className="text-xs font-mono text-white/50 transition-colors">
+                    Close
+                  </motion.button>
+                </div>
               </motion.div>
 
-              {/* ── Tab bar ── */}
+              {/* Tab bar */}
               <div className="overflow-x-auto -mx-4 px-4 sm:overflow-visible sm:mx-0 sm:px-0">
-                <Tabs tabs={TABS} active={tab} onChange={(t) => setTab(t as Tab)} />
+                <Tabs tabs={TABS} active={tab} onChange={(t) => handleTabChange(t as Tab)} />
               </div>
 
-              {/* ── Content ── */}
+              {/* Content */}
               <AnimatePresence mode="wait">
                 <motion.div
                   key={tab}
@@ -197,6 +247,7 @@ export default function App() {
                     model={model}
                     tab={tab}
                     filename={file?.name ?? restoredFilename ?? ''}
+                    onPreprocessed={handlePreprocessed}
                   />
                 </motion.div>
               </AnimatePresence>

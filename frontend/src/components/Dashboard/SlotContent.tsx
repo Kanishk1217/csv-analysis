@@ -10,7 +10,7 @@ import { FeatureImportance } from './FeatureImportance'
 import { Summary }          from './Summary'
 import { AlertBanner }      from '../UI/AlertBanner'
 import { ColumnRenamer }    from '../UI/ColumnRenamer'
-import type { Tab, UploadResponse, CorrelationResponse, TrainResponse } from '../../types'
+import type { Tab, UploadResponse, CorrelationResponse, TrainResponse, PreprocessResponse } from '../../types'
 
 interface ModelState {
   result:        TrainResponse | null
@@ -30,9 +30,10 @@ interface Props {
   filename:  string
   compact?:  boolean        // true in side-by-side mode → smaller padding
   onRemove?: () => void     // undefined for primary slot (use global reset)
+  onPreprocessed?: (result: PreprocessResponse) => void
 }
 
-export function SlotContent({ data, file, model, tab, filename, compact, onRemove }: Props) {
+export function SlotContent({ data, file, model, tab, filename, compact, onRemove, onPreprocessed }: Props) {
   const [renameMap, setRenameMap] = useState<Record<string, string>>({})
 
   return (
@@ -80,7 +81,7 @@ export function SlotContent({ data, file, model, tab, filename, compact, onRemov
         {tab === 'distributions'  && <Distributions data={data} />}
         {tab === 'visualizations' && <Visualizations data={data} />}
         {tab === 'preprocessing'  && file
-          ? <Preprocessing data={data} file={file} />
+          ? <Preprocessing data={data} file={file} onPreprocessed={onPreprocessed} />
           : tab === 'preprocessing' && (
             <p className="text-xs font-mono text-dim py-8 text-center">Re-upload this file to run preprocessing.</p>
           )

@@ -7,8 +7,9 @@ import { preprocessCSV } from '../../api/client'
 import type { UploadResponse, PreprocessResponse } from '../../types'
 
 interface Props {
-  data: UploadResponse
-  file: File
+  data:             UploadResponse
+  file:             File
+  onPreprocessed?:  (result: PreprocessResponse) => void
 }
 
 const SELECT = 'w-full glass border-0 text-white/70 text-xs font-mono px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-white/20 appearance-none cursor-pointer'
@@ -82,7 +83,7 @@ function useRecommendations(data: UploadResponse) {
   }, [data])
 }
 
-export function Preprocessing({ data, file }: Props) {
+export function Preprocessing({ data, file, onPreprocessed }: Props) {
   const rec = useRecommendations(data)
 
   const [fillNum,  setFillNum]  = useState(rec.recFillNum)
@@ -102,6 +103,7 @@ export function Preprocessing({ data, file }: Props) {
     try {
       const res = await preprocessCSV(file, fillNum, fillCat, scale, dropDups)
       setResult(res)
+      onPreprocessed?.(res)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Preprocessing failed')
     } finally {
