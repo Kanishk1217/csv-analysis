@@ -1,11 +1,12 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import pandas as pd
 import numpy as np
 import io
 from sklearn.base import clone
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.ensemble import (
@@ -32,9 +33,6 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Ensure CORS headers are present even on unhandled 500 errors
-from fastapi import Request
-from fastapi.responses import JSONResponse
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -43,6 +41,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": str(exc)},
         headers={"Access-Control-Allow-Origin": "*"},
     )
+
 
 # Prototypes — cloned fresh per request so state never leaks between calls
 _REGRESSION_MODELS = {
@@ -60,10 +59,22 @@ _CLASSIFICATION_MODELS = {
 }
 
 
-def read_csv_safe(file: UploadFile) -> pd.DataFrame:
+async def read_upload(file: UploadFile, max_mb: int = 20) -> bytes:
+    """Validate file type + size, then return raw bytes."""
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are supported. Please upload a .csv file.")
+    raw = await file.read()
+    if len(raw) > max_mb * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File is too large (max {max_mb} MB). Try removing unused columns or filtering rows before uploading.",
+        )
+    return raw
+
+
+def parse_csv(raw: bytes) -> pd.DataFrame:
     try:
-        contents = file.file.read()
-        return pd.read_csv(io.BytesIO(contents))
+        return pd.read_csv(io.BytesIO(raw))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not parse CSV: {e}")
 
@@ -92,13 +103,6 @@ def get_feature_importance(model, feature_names):
     return series
 
 
-def safe_json(obj):
-    """Replace NaN/Inf with None so JSON serialisation never fails."""
-    if isinstance(obj, float) and (np.isnan(obj) or np.isinf(obj)):
-        return None
-    return obj
-
-
 def is_id_col(df: pd.DataFrame, col: str) -> bool:
     """Return True if column looks like an identifier — exclude from numeric analysis."""
     col_lower = col.lower().strip()
@@ -115,22 +119,32 @@ def is_id_col(df: pd.DataFrame, col: str) -> bool:
     return False
 
 
+def safe_records(frame: pd.DataFrame):
+    rows = []
+    for row in frame.to_dict(orient="records"):
+        safe_row = {}
+        for k, v in row.items():
+            if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
+                safe_row[k] = None
+            else:
+                safe_row[k] = v
+        rows.append(safe_row)
+    return rows
+
+
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
     try:
-        contents = file.file.read()
-        if len(contents) > 20 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="File is too large (max 20 MB). Try removing unused columns or filtering rows before uploading.")
-        file.file.seek(0)
-        df_raw = read_csv_safe(file)
-        df = clean_df(df_raw)
+        raw = await read_upload(file)
+        df_raw = parse_csv(raw)
+        df_clean = clean_df(df_raw)
 
-        num_cols = [c for c in df.select_dtypes(include="number").columns if not is_id_col(df, c)]
-        cat_cols = df.select_dtypes(include="object").columns.tolist()
+        num_cols = [c for c in df_raw.select_dtypes(include="number").columns if not is_id_col(df_raw, c)]
+        cat_cols = df_raw.select_dtypes(include="object").columns.tolist()
 
-        # Safe stats — only numeric columns, replace all bad values
+        # Stats on RAW data so missing values aren't hidden by auto-imputation
         try:
-            stats_df = df[num_cols].describe() if num_cols else pd.DataFrame()
+            stats_df = df_raw[num_cols].describe() if num_cols else pd.DataFrame()
             stats = {}
             for col in stats_df.columns:
                 stats[col] = {}
@@ -143,37 +157,24 @@ async def upload(file: UploadFile = File(...)):
         cat_summary = {}
         for col in cat_cols:
             try:
-                cat_summary[col] = df[col].value_counts().head(10).to_dict()
+                cat_summary[col] = df_raw[col].value_counts().head(10).to_dict()
             except Exception:
                 cat_summary[col] = {}
 
-        # 500 rows for charts
-        def safe_records(frame: pd.DataFrame):
-            rows = []
-            for row in frame.to_dict(orient="records"):
-                safe_row = {}
-                for k, v in row.items():
-                    if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
-                        safe_row[k] = None
-                    else:
-                        safe_row[k] = v
-                rows.append(safe_row)
-            return rows
-
-        sample_rows = safe_records(df.head(500))
+        sample_rows = safe_records(df_clean.head(500))
         preview_rows = sample_rows[:10]
 
         return {
             "shape":         list(df_raw.shape),
-            "columns":       df.columns.tolist(),
-            "dtypes":        df.dtypes.astype(str).to_dict(),
+            "columns":       df_raw.columns.tolist(),
+            "dtypes":        df_raw.dtypes.astype(str).to_dict(),
             "preview":       preview_rows,
             "sample":        sample_rows,
             "missing":       {k: int(v) for k, v in df_raw.isnull().sum().to_dict().items()},
             "missing_total": int(df_raw.isnull().sum().sum()),
             "duplicates":    int(df_raw.duplicated().sum()),
             "complete_rows": int((~df_raw.isnull().any(axis=1)).sum()),
-            "memory_mb":     round(df.memory_usage(deep=True).sum() / 1024**2, 4),
+            "memory_mb":     round(df_raw.memory_usage(deep=True).sum() / 1024**2, 4),
             "numeric_cols":  num_cols,
             "cat_cols":      cat_cols,
             "statistics":    stats,
@@ -188,7 +189,8 @@ async def upload(file: UploadFile = File(...)):
 @app.post("/correlations")
 async def correlations(file: UploadFile = File(...)):
     try:
-        df_raw = read_csv_safe(file)
+        raw = await read_upload(file)
+        df_raw = parse_csv(raw)
         df = clean_df(df_raw)
 
         num_raw = df_raw[[c for c in df_raw.select_dtypes("number").columns if not is_id_col(df_raw, c)]]
@@ -199,7 +201,6 @@ async def correlations(file: UploadFile = File(...)):
 
         def matrix(d):
             corr = d.corr()
-            # replace NaN with None for JSON
             corr_list = [[None if (v is None or (isinstance(v, float) and np.isnan(v))) else round(v, 4)
                           for v in row] for row in corr.values.tolist()]
             return {"columns": d.columns.tolist(), "matrix": corr_list}
@@ -230,19 +231,18 @@ async def preprocess(
     drop_duplicates:  str        = Form("false"),
 ):
     try:
-        df = read_csv_safe(file)
+        raw = await read_upload(file)
+        df = parse_csv(raw)
         rows_before = len(df)
         filled_numeric     = 0
         filled_categorical = 0
 
-        # Drop duplicates
         if drop_duplicates.lower() == "true":
             df = df.drop_duplicates()
 
         num_cols = df.select_dtypes(include="number").columns.tolist()
         cat_cols = df.select_dtypes(include="object").columns.tolist()
 
-        # Fill numeric missing
         if fill_numeric == "drop":
             df = df.dropna(subset=num_cols)
         else:
@@ -257,7 +257,6 @@ async def preprocess(
                         df[col] = df[col].fillna(0)
                     filled_numeric += int(n)
 
-        # Fill categorical missing
         if fill_categorical == "drop":
             df = df.dropna(subset=cat_cols)
         else:
@@ -271,13 +270,10 @@ async def preprocess(
                         df[col] = df[col].fillna("Unknown")
                     filled_categorical += int(n)
 
-        # Scale numeric
         if scale_strategy != "none" and num_cols:
-            from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
             scaler = {"standard": StandardScaler(), "minmax": MinMaxScaler(), "robust": RobustScaler()}[scale_strategy]
             df[num_cols] = scaler.fit_transform(df[num_cols])
 
-        # Build preview
         def safe_val(v):
             if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
                 return None
@@ -286,8 +282,6 @@ async def preprocess(
             return v
 
         preview = [{k: safe_val(v) for k, v in row.items()} for row in df.head(10).to_dict(orient="records")]
-
-        # CSV export
         csv_str = df.to_csv(index=False)
 
         return {
@@ -314,7 +308,8 @@ async def train(
     test_size: float      = Form(0.2),
 ):
     try:
-        df = clean_df(read_csv_safe(file))
+        raw = await read_upload(file)
+        df = clean_df(parse_csv(raw))
 
         if target not in df.columns:
             raise HTTPException(status_code=400, detail=f"Column '{target}' not found")
@@ -341,7 +336,6 @@ async def train(
         if algorithm not in registry:
             raise HTTPException(status_code=400, detail=f"Unknown algorithm '{algorithm}'")
 
-        # Clone so the global prototype is never mutated
         model = clone(registry[algorithm])
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
