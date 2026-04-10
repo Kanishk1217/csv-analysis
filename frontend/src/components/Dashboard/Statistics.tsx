@@ -83,6 +83,24 @@ export function Statistics({ data }: { data: UploadResponse }) {
             ))}
           </tbody>
         </table>
+        {/* Plain-English legend */}
+        <div className="border-t border-border p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'count',  desc: 'Non-missing values' },
+            { label: 'mean',   desc: 'Average of all values' },
+            { label: 'std',    desc: 'How spread out values are' },
+            { label: 'min',    desc: 'Smallest value' },
+            { label: '25%',    desc: 'Bottom quarter cutoff' },
+            { label: '50%',    desc: 'Median (middle value)' },
+            { label: '75%',    desc: 'Top quarter cutoff' },
+            { label: 'max',    desc: 'Largest value' },
+          ].map(({ label, desc }) => (
+            <div key={label} className="flex items-start gap-1.5">
+              <span className="text-[10px] font-mono text-white/50 flex-shrink-0 w-8">{label}</span>
+              <span className="text-[10px] font-mono text-white/25 leading-relaxed">{desc}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Missing values bar chart */}
