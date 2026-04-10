@@ -17,25 +17,118 @@ interface Props {
 
 const TOTAL_STEPS = 12 // 9 tabs + 3 analyses
 
+// ── Spinner ───────────────────────────────────────────────────────────────────
+function Spinner({ color }: { color: string }) {
+  return (
+    <motion.div
+      className={`w-3 h-3 rounded-full border ${color}`}
+      animate={{ rotate: 360 }}
+      transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+    />
+  )
+}
+
+// ── ThemeButton ───────────────────────────────────────────────────────────────
+interface ThemeButtonProps {
+  theme:      'dark' | 'light'
+  onClick:    () => void
+  generating: boolean
+}
+
+function ThemeButton({ theme, onClick, generating }: ThemeButtonProps) {
+  const isDark = theme === 'dark'
+
+  const baseClass = isDark
+    ? 'border border-sky-500/60 text-sky-300 hover:border-sky-400/80 hover:text-sky-200'
+    : 'border border-violet-500/60 text-violet-300 hover:border-violet-400/80 hover:text-violet-200'
+
+  const shimmerGrad = isDark
+    ? 'linear-gradient(105deg, transparent 40%, rgba(56,189,248,0.18) 50%, transparent 60%)'
+    : 'linear-gradient(105deg, transparent 40%, rgba(139,92,246,0.18) 50%, transparent 60%)'
+
+  const spinnerColor = isDark
+    ? 'border-sky-400/60 border-t-sky-300'
+    : 'border-violet-400/60 border-t-violet-300'
+
+  return (
+    <motion.button
+      onClick={onClick}
+      disabled={generating}
+      whileHover={{ scale: 1.04 }}
+      whileTap={{ scale: 0.96 }}
+      className={[
+        'relative overflow-hidden flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono',
+        'transition-all duration-200 select-none cursor-pointer',
+        baseClass,
+      ].join(' ')}
+      aria-label={`Export PDF in ${theme} theme`}
+    >
+      {/* shimmer */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: shimmerGrad, backgroundSize: '200% 100%' }}
+        animate={{ backgroundPosition: ['200% 0', '-200% 0'] }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
+      />
+
+      {generating ? (
+        <>
+          <Spinner color={spinnerColor} />
+          <span>…</span>
+        </>
+      ) : isDark ? (
+        <>
+          {/* Moon icon */}
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+            <path
+              d="M9 6.5A4 4 0 1 1 4.5 2a3 3 0 0 0 4.5 4.5Z"
+              stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"
+            />
+          </svg>
+          <span>Dark</span>
+        </>
+      ) : (
+        <>
+          {/* Sun icon */}
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+            <circle cx="5.5" cy="5.5" r="2" stroke="currentColor" strokeWidth="1.1"/>
+            <path
+              d="M5.5 1v1M5.5 9v1M1 5.5h1M9 5.5h1M2.4 2.4l.7.7M7.9 7.9l.7.7M7.9 2.4l-.7.7M2.4 7.9l.7-.7"
+              stroke="currentColor" strokeWidth="1" strokeLinecap="round"
+            />
+          </svg>
+          <span>Light</span>
+        </>
+      )}
+    </motion.button>
+  )
+}
+
+// ── PDFButton ─────────────────────────────────────────────────────────────────
 export function PDFButton({
   unlocked, missingSteps, filename, data,
   corrResult, trainResult, preprocessResult
 }: Props) {
-  const [generating, setGenerating] = useState(false)
-  const [showTip,    setShowTip]    = useState(false)
+  const [generatingDark,  setGeneratingDark]  = useState(false)
+  const [generatingLight, setGeneratingLight] = useState(false)
+  const [showTip,         setShowTip]         = useState(false)
   const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const doneCount = TOTAL_STEPS - missingSteps.length
   const pct       = Math.round((doneCount / TOTAL_STEPS) * 100)
 
-  function handleClick() {
-    if (!unlocked || generating) return
-    setGenerating(true)
+  function generate(theme: 'dark' | 'light') {
+    if (!unlocked) return
+    if (theme === 'dark' && generatingDark)  return
+    if (theme === 'light' && generatingLight) return
+
+    const setter = theme === 'dark' ? setGeneratingDark : setGeneratingLight
+    setter(true)
     setTimeout(() => {
       try {
-        generateCSVPDF({ filename, data, corrResult, trainResult, preprocessResult })
+        generateCSVPDF({ filename, data, corrResult, trainResult, preprocessResult }, theme)
       } finally {
-        setGenerating(false)
+        setter(false)
       }
     }, 50)
   }
@@ -51,61 +144,29 @@ export function PDFButton({
 
   return (
     <div className="relative flex-shrink-0" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-      <motion.button
-        onClick={handleClick}
-        disabled={!unlocked || generating}
-        aria-label={unlocked ? 'Download PDF report' : `PDF locked — ${missingSteps.length} steps remaining`}
-        whileHover={unlocked ? { scale: 1.03 } : {}}
-        whileTap={unlocked ? { scale: 0.97 } : {}}
-        className={[
-          'relative overflow-hidden flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono transition-all duration-200 select-none',
-          unlocked
-            ? 'border border-sky-500/60 text-sky-300 hover:border-sky-400/80 hover:text-sky-200 cursor-pointer'
-            : 'border border-white/[0.08] text-white/25 cursor-default'
-        ].join(' ')}
-      >
-        {/* shimmer overlay when unlocked */}
-        {unlocked && (
-          <motion.div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: 'linear-gradient(105deg, transparent 40%, rgba(56,189,248,0.18) 50%, transparent 60%)',
-              backgroundSize: '200% 100%',
-            }}
-            animate={{ backgroundPosition: ['200% 0', '-200% 0'] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
-          />
-        )}
+      {unlocked ? (
+        /* Two side-by-side theme buttons */
+        <div className="flex items-center gap-1.5">
+          <ThemeButton theme="dark"  onClick={() => generate('dark')}  generating={generatingDark} />
+          <ThemeButton theme="light" onClick={() => generate('light')} generating={generatingLight} />
+        </div>
+      ) : (
+        /* Locked state */
+        <motion.button
+          disabled
+          aria-label={`PDF locked -- ${missingSteps.length} steps remaining`}
+          className="relative overflow-hidden flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono
+                     border border-white/[0.08] text-white/25 cursor-default select-none"
+        >
+          <svg width="10" height="11" viewBox="0 0 10 11" fill="none" aria-hidden="true">
+            <rect x="1.5" y="4.5" width="7" height="6" rx="1" stroke="currentColor" strokeWidth="1.1"/>
+            <path d="M3 4.5V3a2 2 0 0 1 4 0v1.5" stroke="currentColor" strokeWidth="1.1"/>
+          </svg>
+          <span>PDF {pct}%</span>
+        </motion.button>
+      )}
 
-        {generating ? (
-          <>
-            <motion.div
-              className="w-3 h-3 rounded-full border border-sky-400/60 border-t-sky-300"
-              animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
-            />
-            <span>Generating…</span>
-          </>
-        ) : unlocked ? (
-          <>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-              <rect x="1" y="1" width="7" height="10" rx="1" stroke="currentColor" strokeWidth="1.1"/>
-              <path d="M3 4h5M3 6h5M3 8h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
-              <path d="M8 1v3h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span>Export PDF</span>
-          </>
-        ) : (
-          <>
-            <svg width="10" height="11" viewBox="0 0 10 11" fill="none" aria-hidden="true">
-              <rect x="1.5" y="4.5" width="7" height="6" rx="1" stroke="currentColor" strokeWidth="1.1"/>
-              <path d="M3 4.5V3a2 2 0 0 1 4 0v1.5" stroke="currentColor" strokeWidth="1.1"/>
-            </svg>
-            <span>PDF {pct}%</span>
-          </>
-        )}
-      </motion.button>
-
-      {/* Tooltip */}
+      {/* Tooltip (locked only) */}
       <AnimatePresence>
         {showTip && !unlocked && (
           <motion.div
@@ -141,7 +202,7 @@ export function PDFButton({
                   </li>
                 ))}
                 {missingSteps.length > 8 && (
-                  <li className="text-[10px] font-mono text-white/30">+{missingSteps.length - 8} more…</li>
+                  <li className="text-[10px] font-mono text-white/30">+{missingSteps.length - 8} more...</li>
                 )}
               </ul>
             </div>
