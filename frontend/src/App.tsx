@@ -38,6 +38,11 @@ export default function App() {
   useEffect(() => { pingServer().finally(() => setReady(true)) }, [])
 
   useEffect(() => {
+    const id = setInterval(() => pingServer(), 10 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
     if (!data) {
       setVisitedTabs(new Set())
       setPreprocessResult(null)
@@ -154,20 +159,14 @@ export default function App() {
                     initial={{ opacity: 0, y: 8, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }} className="mb-6 overflow-hidden"
                   >
-                    <div className="glass px-5 py-3 space-y-2" role="status" aria-live="polite">
-                      <div className="flex items-center gap-2.5">
-                        <motion.div className="w-1.5 h-1.5 rounded-full bg-white/60 flex-shrink-0"
-                          animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity }} aria-hidden="true" />
-                        <span className="text-[11px] font-mono text-white/70">Server is starting up — this takes ~30s on first visit</span>
-                      </div>
-                      <div className="h-px w-full bg-white/[0.06] overflow-hidden">
-                        <motion.div className="h-full bg-white/30"
-                          initial={{ width: '0%' }}
-                          animate={{ width: '100%' }}
-                          transition={{ duration: 30, ease: 'linear' }}
-                        />
-                      </div>
-                      <p className="text-[10px] font-mono text-white/35">Upload will work as soon as the bar fills — you can drop your file now</p>
+                    <div className="flex items-center gap-2.5 px-1 py-3" role="status" aria-live="polite">
+                      <motion.div
+                        className="w-3.5 h-3.5 rounded-full border border-white/20 border-t-white/60 flex-shrink-0"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
+                        aria-hidden="true"
+                      />
+                      <span className="text-[11px] font-mono text-white/40">Connecting...</span>
                     </div>
                   </motion.div>
                 )}
